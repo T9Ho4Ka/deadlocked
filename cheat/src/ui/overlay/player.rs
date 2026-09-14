@@ -3,13 +3,13 @@ use std::{
     time::{Duration, Instant},
 };
 
-use egui::{Color32, Painter, Pos2, Stroke, pos2};
+use egui::{pos2, Color32, Painter, Pos2, Stroke};
 use shared::{Bones, Data, PlayerData, SoundType};
 
 use crate::{
     config::player::{BoxMode, DrawMode, SnaplineAnchor, SnaplineMode, VisibilityMode},
     config::text::TextPosition,
-    math::{CYLINDER_SAMPLES, world_to_screen, world_to_screen_normalized},
+    math::{world_to_screen, world_to_screen_normalized, CYLINDER_SAMPLES},
     ui::{app::AppState, color::Colors},
 };
 
@@ -131,23 +131,37 @@ impl AppState {
 
         color = Self::alpha(color, alpha);
 
-        let stroke = Stroke::new(line_width, color);
-
         let Some((tl, tr, bl, br)) = self.projected_world_bounds(player, data) else {
             return;
         };
 
+        // Draw dynamic outline: multiple concentric strokes with time-based pulsing.
         if self.config.player.draw_box != DrawMode::None {
-            if self.config.player.box_mode == BoxMode::Gap {
-                self.draw_projected_gap_box(painter, tl, tr, bl, br, stroke);
-            } else {
-                painter.rect(
-                    egui::Rect::from_min_max(tl, br),
-                    0,
-                    Color32::TRANSPARENT,
-                    stroke,
-                    egui::StrokeKind::Middle,
-                );
+            let time = self.start_time.elapsed().as_secs_f32();
+            let base_width = line_width;
+            let layers = 4usize;
+            let speed = 3.0;
+
+            for i in 0..layers {
+                let layer = i as f32;
+                let w = base_width * (1.0 + layer * 0.6);
+                let pulse = 0.5 + 0.5 * (time * speed + layer).sin();
+                let mut layer_alpha = (1.0 - layer / layers as f32) * pulse;
+                layer_alpha *= alpha;
+                let layer_color = Self::alpha(color, layer_alpha);
+                let layer_stroke = Stroke::new(w, layer_color);
+
+                if self.config.player.box_mode == BoxMode::Gap {
+                    self.draw_projected_gap_box(painter, tl, tr, bl, br, layer_stroke);
+                } else {
+                    painter.rect(
+                        egui::Rect::from_min_max(tl, br),
+                        0.0,
+                        Color32::TRANSPARENT,
+                        layer_stroke,
+                        egui::StrokeKind::Middle,
+                    );
+                }
             }
         }
 

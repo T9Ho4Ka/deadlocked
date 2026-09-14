@@ -40,6 +40,7 @@ pub struct AppState {
     pub trails: HashMap<usize, Trail>,
     pub player_sounds: HashMap<u64, (Instant, SoundType)>,
     pub frame_times: VecDeque<Duration>,
+    pub start_time: Instant,
 
     pub grenades: GrenadeList,
     pub new_grenade: Grenade,
@@ -127,6 +128,7 @@ impl AppState {
             trails: HashMap::new(),
             player_sounds: HashMap::new(),
             frame_times: VecDeque::with_capacity(500),
+            start_time: Instant::now(),
             grenades,
             new_grenade: Grenade::new(),
             current_grenade: None,
