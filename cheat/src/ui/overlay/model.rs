@@ -41,6 +41,7 @@ pub struct ModelRenderer {
     glow: Arc<glow::Context>,
     program: glow::Program,
     meshes: HashMap<String, ModelMesh>,
+    max_bones: usize,
     uniforms: ModelUniforms,
 }
 
@@ -55,11 +56,19 @@ struct ModelUniforms {
 
 impl ModelRenderer {
     pub fn new(glow: Arc<glow::Context>) -> Result<Self, String> {
-        let program = build_program(glow.as_ref())?;
         let mut meshes = HashMap::with_capacity(MODELS.len());
+        let mut max_bones = 0;
 
         for info in MODELS {
             let model = load_model(glow.as_ref(), info.data)?;
+            max_bones = max_bones.max(
+                model
+                    .primitives
+                    .iter()
+                    .map(|primitive| primitive.joint_names.len())
+                    .max()
+                    .unwrap_or(0),
+            );
             if meshes.insert(info.name.to_owned(), model).is_some() {
                 return Err(format!("duplicate model name: {}", info.name));
             }
@@ -68,6 +77,10 @@ impl ModelRenderer {
         if meshes.is_empty() {
             return Err("model registry is empty".to_string());
         }
+        if max_bones == 0 {
+            return Err("model registry has no skinned joints".to_string());
+        }
+        let program = build_program(glow.as_ref(), max_bones)?;
         let uniforms = ModelUniforms {
             view: opengl::uniform_location(glow.as_ref(), program, "u_view")?,
             model: opengl::uniform_location(glow.as_ref(), program, "u_model")?,
@@ -85,6 +98,7 @@ impl ModelRenderer {
             glow,
             program,
             meshes,
+            max_bones,
             uniforms,
         })
     }
@@ -128,7 +142,10 @@ impl ModelRenderer {
                 params.invisible_color[2],
                 params.invisible_color[3],
             );
-            let visibility: Vec<f32> = params.skeleton.iter().map(|bone| bone.visibility).collect();
+            let mut visibility = vec![1.0; self.max_bones];
+            for (index, bone) in params.skeleton.iter().take(self.max_bones).enumerate() {
+                visibility[index] = bone.visibility;
+            }
             glow.uniform_1_f32_slice(Some(&self.uniforms.bone_visibility), &visibility);
             glow.enable(glow::BLEND);
             glow.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA);
@@ -142,7 +159,7 @@ impl ModelRenderer {
             );
 
             for primitive in &model.primitives {
-                let palette = skin_palette(primitive, params.skeleton);
+                let palette = skin_palette(primitive, params.skeleton, self.max_bones);
                 glow.uniform_matrix_4_f32_slice(Some(&self.uniforms.bones), false, &palette);
                 glow.bind_vertex_array(Some(primitive.vao));
                 glow.draw_elements(
@@ -328,15 +345,14 @@ fn load_model(glow: &glow::Context, data: &[u8]) -> Result<ModelMesh, String> {
     Ok(ModelMesh { primitives })
 }
 
-const MAX_BONES: usize = 96;
 const MODEL_UNITS_TO_SOURCE: f32 = 39.3701;
 
-fn skin_palette(primitive: &PrimitiveMesh, skeleton: &[BoneTransform]) -> Vec<f32> {
+fn skin_palette(primitive: &PrimitiveMesh, skeleton: &[BoneTransform], max_bones: usize) -> Vec<f32> {
     // blend each joint with its inverse bind matrix
-    let mut palette = vec![0.0; MAX_BONES * 16];
+    let mut palette = vec![0.0; max_bones * 16];
 
     for (joint_index, _joint_name) in primitive.joint_names.iter().enumerate() {
-        if joint_index >= MAX_BONES {
+        if joint_index >= max_bones {
             break;
         }
 
@@ -357,17 +373,17 @@ fn skin_palette(primitive: &PrimitiveMesh, skeleton: &[BoneTransform]) -> Vec<f3
             .copy_from_slice(skin.to_cols_array().as_ref());
     }
 
-    for joint_index in primitive.joint_names.len().min(MAX_BONES)..MAX_BONES {
+    for joint_index in primitive.joint_names.len().min(max_bones)..max_bones {
         palette[joint_index * 16..joint_index * 16 + 16].copy_from_slice(Mat4::IDENTITY.as_ref());
     }
 
     palette
 }
 
-fn build_program(glow: &glow::Context) -> Result<glow::Program, String> {
-    let vertex = include_str!("shaders/model.vert");
+fn build_program(glow: &glow::Context, max_bones: usize) -> Result<glow::Program, String> {
+    let vertex = include_str!("shaders/model.vert").replace("{{MAX_BONES}}", &max_bones.to_string());
     let fragment = include_str!("shaders/model.frag");
-    opengl::build_program(glow, vertex, fragment)
+    opengl::build_program(glow, &vertex, fragment)
 }
 
 pub fn model_matrix() -> [f32; 16] {
