@@ -6,8 +6,8 @@ layout (location = 2) in vec4 a_weights;
 
 uniform mat4 u_view;
 uniform mat4 u_model;
-uniform mat4 u_bones[96];
-uniform float u_bone_visibility[96];
+uniform mat4 u_bones[{{MAX_BONES}}];
+uniform float u_bone_visibility[{{MAX_BONES}}];
 
 out float v_visibility;
 
