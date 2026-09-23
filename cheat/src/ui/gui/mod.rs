@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use egui::{Align, Ui};
+use egui::Ui;
 use shared::Data;
 
 use crate::{
@@ -13,6 +13,7 @@ use crate::{
             aimbot::AimbotTab,
             helpers::{open_url, text_settings_popup},
         },
+        theme,
         window_context::WindowContext,
     },
     update::UpdateStatus,
@@ -28,7 +29,7 @@ mod player;
 mod radar;
 mod r#unsafe;
 
-#[derive(PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum Tab {
     Aimbot,
     Player,
@@ -39,6 +40,19 @@ pub enum Tab {
     Config,
     Application,
 }
+
+const TABS: [(Tab, &str); 8] = [
+    (Tab::Aimbot, "Aimbot"),
+    (Tab::Player, "Player"),
+    (Tab::Hud, "Hud"),
+    (Tab::Grenades, "Grenades"),
+    (Tab::Unsafe, "Unsafe"),
+    (Tab::Radar, "Radar"),
+    (Tab::Config, "Config"),
+    (Tab::Application, "Application"),
+];
+
+const SIDEBAR_WIDTH: f32 = 176.0;
 
 impl AppState {
     pub fn send_config_game(&self) {
@@ -72,53 +86,131 @@ impl AppState {
 
     pub(crate) fn gui(&mut self, ui: &mut Ui) {
         ui.ctx().set_pixels_per_point(self.display_scale);
+
+        let theme = self.config.theme.clone();
+        let palette = theme.palette();
+        let accent = self.config.accent_color;
+
+        theme::paint_gradient(ui.painter(), ui.max_rect(), &theme);
+
+        let panel_frame = egui::Frame::NONE
+            .fill(theme.panel_fill(palette.base))
+            .inner_margin(egui::Margin::symmetric(10, 10));
+
         egui::Panel::left("sidebar")
             .resizable(false)
+            .exact_size(SIDEBAR_WIDTH)
+            .frame(panel_frame)
             .show(ui, |ui| {
-                ui.selectable_value(&mut self.current_tab, Tab::Aimbot, "Aimbot");
-                ui.selectable_value(&mut self.current_tab, Tab::Player, "Player");
-                ui.selectable_value(&mut self.current_tab, Tab::Hud, "Hud");
-                ui.selectable_value(&mut self.current_tab, Tab::Grenades, "Grenades");
-                ui.selectable_value(&mut self.current_tab, Tab::Unsafe, "Unsafe");
-                ui.selectable_value(&mut self.current_tab, Tab::Radar, "Radar");
-                ui.selectable_value(&mut self.current_tab, Tab::Config, "Config");
-                ui.selectable_value(&mut self.current_tab, Tab::Application, "Application");
+                // header and footer are panels of their own so they reserve their height
+                // up front. a bottom_up layout would instead draw upwards from the bottom
+                // edge and run over the tab list as soon as the window gets short.
+                egui::Panel::top("sidebar_header")
+                    .frame(egui::Frame::NONE)
+                    .show(ui, |ui| {
+                        ui.label(
+                            egui::RichText::new("deadlocked")
+                                .size(21.0)
+                                .strong()
+                                .color(accent),
+                        );
+                        ui.add_space(2.0);
+                        ui.label(
+                            egui::RichText::new(concat!("v", env!("CARGO_PKG_VERSION")))
+                                .size(12.0)
+                                .color(palette.subtext),
+                        );
+                        ui.add_space(8.0);
+                        ui.separator();
+                    });
 
-                ui.with_layout(egui::Layout::bottom_up(Align::Min), |ui| {
-                    ui.label(concat!("v", env!("CARGO_PKG_VERSION")));
+                egui::Panel::bottom("sidebar_footer")
+                    .frame(egui::Frame::NONE)
+                    .show(ui, |ui| {
+                        ui.separator();
+                        ui.add_space(4.0);
 
-                    if ui.button("Report Issue").clicked() {
-                        open_url("https://github.com/avitran0/deadlocked/issues");
-                    }
-
-                    ui.label(egui::RichText::new(format!("{}", self.game_status)).color(
-                        match self.game_status {
+                        let status_color = match self.game_status {
                             GameStatus::Working => Colors::GREEN,
                             GameStatus::NotStarted => Colors::YELLOW,
-                        },
-                    ));
+                        };
+                        ui.horizontal(|ui| {
+                            let (rect, _) =
+                                ui.allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
+                            ui.painter().circle_filled(rect.center(), 4.0, status_color);
+                            ui.label(
+                                egui::RichText::new(format!("{}", self.game_status))
+                                    .size(13.0)
+                                    .color(status_color),
+                            );
+                        });
 
-                    let frame_avg = if self.frame_times.is_empty() {
-                        0.0f32
-                    } else {
-                        let frame_sum =
-                            self.frame_times.iter().sum::<Duration>().as_secs_f32() * 1000.0;
-                        frame_sum / self.frame_times.len() as f32
-                    };
-                    ui.label(format!("{frame_avg:.1} ms"));
-                });
+                        let frame_avg = if self.frame_times.is_empty() {
+                            0.0f32
+                        } else {
+                            let frame_sum =
+                                self.frame_times.iter().sum::<Duration>().as_secs_f32() * 1000.0;
+                            frame_sum / self.frame_times.len() as f32
+                        };
+                        ui.label(
+                            egui::RichText::new(format!("{frame_avg:.1} ms"))
+                                .size(13.0)
+                                .color(palette.subtext),
+                        );
+
+                        ui.add_space(4.0);
+                        if ui
+                            .add_sized(
+                                [ui.available_width(), 28.0],
+                                egui::Button::new("Report Issue"),
+                            )
+                            .clicked()
+                        {
+                            open_url("https://github.com/avitran0/deadlocked/issues");
+                        }
+                    });
+
+                // whatever height is left belongs to the tabs, and they scroll if even
+                // that is not enough
+                ui.add_space(6.0);
+                egui::ScrollArea::vertical()
+                    .id_salt("sidebar_tabs")
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        let tab_width = ui.available_width();
+                        for (tab, name) in TABS {
+                            let selected = self.current_tab == tab;
+                            if ui
+                                .add_sized(
+                                    [tab_width, 30.0],
+                                    egui::Button::selectable(selected, name).corner_radius(
+                                        egui::CornerRadius::same(theme.corner_radius),
+                                    ),
+                                )
+                                .clicked()
+                            {
+                                self.current_tab = tab;
+                            }
+                        }
+                    });
             });
 
-        egui::CentralPanel::default().show(ui, |ui| match self.current_tab {
-            Tab::Aimbot => self.aimbot_settings(ui),
-            Tab::Player => self.player_settings(ui),
-            Tab::Hud => self.hud_settings(ui),
-            Tab::Grenades => self.grenade_settings(ui),
-            Tab::Unsafe => self.unsafe_settings(ui),
-            Tab::Radar => self.radar_settings(ui),
-            Tab::Config => self.config_settings(ui),
-            Tab::Application => self.application_settings(ui),
-        });
+        let central_frame = egui::Frame::NONE
+            .fill(theme.panel_fill(palette.base))
+            .inner_margin(egui::Margin::symmetric(12, 10));
+
+        egui::CentralPanel::default()
+            .frame(central_frame)
+            .show(ui, |ui| match self.current_tab {
+                Tab::Aimbot => self.aimbot_settings(ui),
+                Tab::Player => self.player_settings(ui),
+                Tab::Hud => self.hud_settings(ui),
+                Tab::Grenades => self.grenade_settings(ui),
+                Tab::Unsafe => self.unsafe_settings(ui),
+                Tab::Radar => self.radar_settings(ui),
+                Tab::Config => self.config_settings(ui),
+                Tab::Application => self.application_settings(ui),
+            });
 
         self.render_text_popups(ui);
 

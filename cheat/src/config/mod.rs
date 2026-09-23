@@ -12,7 +12,7 @@ use crate::{
         r#unsafe::UnsafeConfig,
     },
     font::Font,
-    ui::color::Colors,
+    ui::{color::Colors, theme::ThemeConfig},
 };
 
 pub mod aim;
@@ -32,6 +32,7 @@ pub struct Config {
     pub misc: UnsafeConfig,
     pub radar: RadarConfig,
     pub accent_color: Color32,
+    pub theme: ThemeConfig,
     pub fps: u32,
     pub font: Font,
 }
@@ -45,6 +46,7 @@ impl Default for Config {
             misc: UnsafeConfig::default(),
             radar: RadarConfig::default(),
             accent_color: Colors::BLUE,
+            theme: ThemeConfig::default(),
             fps: 120,
             font: Font::FiraSans,
         }

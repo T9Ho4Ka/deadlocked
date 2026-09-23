@@ -168,8 +168,10 @@ impl App {
     }
 
     pub fn create_window(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
-        let gui = WindowContext::new(event_loop, false, self.state.config.accent_color);
-        let overlay = WindowContext::new(event_loop, true, self.state.config.accent_color);
+        let theme = self.state.config.theme.clone();
+        let accent = self.state.config.accent_color;
+        let gui = WindowContext::new(event_loop, false, &theme, accent);
+        let overlay = WindowContext::new(event_loop, true, &theme, accent);
 
         self.state.config.font.set(gui.egui());
         self.state.config.font.set(overlay.egui());

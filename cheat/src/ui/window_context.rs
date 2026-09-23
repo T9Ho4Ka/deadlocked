@@ -1,11 +1,14 @@
 use std::{num::NonZeroU32, sync::Arc};
 
-use egui::{Color32, Stroke, Style};
+use egui::Color32;
 use egui_glow::glow::{self, HasContext as _};
 use glutin::prelude::PossiblyCurrentGlContext;
 use winit::platform::x11::{WindowAttributesExtX11, WindowType};
 
-use crate::{font::Font, ui::color::Colors};
+use crate::{
+    font::Font,
+    ui::theme::{self, ThemeConfig},
+};
 
 pub struct WindowContext {
     window: winit::window::Window,
@@ -21,6 +24,7 @@ impl WindowContext {
     pub fn new(
         event_loop: &winit::event_loop::ActiveEventLoop,
         overlay: bool,
+        theme: &ThemeConfig,
         accent_color: egui::Color32,
     ) -> Self {
         use glutin::context::NotCurrentGlContext as _;
@@ -139,7 +143,7 @@ impl WindowContext {
 
         let glow = Arc::new(glow);
         let egui_glow = egui_glow::EguiGlow::new(event_loop, glow.clone(), None, None, true);
-        prep_ctx(&egui_glow.egui_ctx, accent_color);
+        prep_ctx(&egui_glow.egui_ctx, theme, accent_color);
 
         let clear_color = if overlay {
             Color32::TRANSPARENT
@@ -225,52 +229,10 @@ impl Drop for WindowContext {
     }
 }
 
-fn prep_ctx(ctx: &egui::Context, accent_color: egui::Color32) {
+fn prep_ctx(ctx: &egui::Context, theme: &ThemeConfig, accent_color: egui::Color32) {
     Font::install(ctx);
 
-    ctx.style_mut_of(egui::Theme::Dark, |style| {
-        gui_style(style, accent_color);
+    ctx.all_styles_mut(|style| {
+        theme::apply(style, theme, accent_color);
     });
-}
-
-fn gui_style(style: &mut Style, accent_color: egui::Color32) {
-    style.interaction.selectable_labels = false;
-    for font in style.text_styles.iter_mut() {
-        font.1.size = 16.0;
-    }
-    //style.visuals.override_text_color = Some(Color32::WHITE);
-
-    style.visuals.window_fill = Colors::BASE;
-    style.visuals.panel_fill = Colors::BASE;
-    style.visuals.extreme_bg_color = Colors::BACKDROP;
-
-    let bg_stroke = Stroke::new(1.0f32, Colors::SUBTEXT);
-    let fg_stroke = Stroke::new(1.0f32, Colors::TEXT);
-    let dark_stroke = Stroke::new(1.0f32, Colors::BASE);
-
-    style.visuals.selection.bg_fill = accent_color;
-    style.visuals.selection.stroke = dark_stroke;
-
-    style.visuals.widgets.active.bg_fill = Colors::HIGHLIGHT;
-    style.visuals.widgets.active.bg_stroke = bg_stroke;
-    style.visuals.widgets.active.fg_stroke = fg_stroke;
-    style.visuals.widgets.active.weak_bg_fill = Colors::HIGHLIGHT;
-
-    style.visuals.widgets.hovered.bg_fill = Colors::HIGHLIGHT;
-    style.visuals.widgets.hovered.bg_stroke = bg_stroke;
-    style.visuals.widgets.hovered.fg_stroke = fg_stroke;
-    style.visuals.widgets.hovered.weak_bg_fill = Colors::HIGHLIGHT;
-
-    style.visuals.widgets.inactive.bg_fill = Colors::HIGHLIGHT;
-    style.visuals.widgets.inactive.fg_stroke = fg_stroke;
-    style.visuals.widgets.inactive.weak_bg_fill = Colors::HIGHLIGHT;
-
-    style.visuals.widgets.noninteractive.bg_fill = Colors::HIGHLIGHT;
-    style.visuals.widgets.noninteractive.fg_stroke = fg_stroke;
-    style.visuals.widgets.noninteractive.weak_bg_fill = Colors::HIGHLIGHT;
-
-    style.visuals.widgets.open.bg_fill = Colors::HIGHLIGHT;
-    style.visuals.widgets.open.bg_stroke = bg_stroke;
-    style.visuals.widgets.open.fg_stroke = fg_stroke;
-    style.visuals.widgets.open.weak_bg_fill = Colors::HIGHLIGHT;
 }
