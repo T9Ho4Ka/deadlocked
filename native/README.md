@@ -60,6 +60,7 @@ Fedora dependencies: `sudo dnf install gcc-c++ cmake ninja-build glfw-devel mesa
 | `src/config/font.hpp` | the six bundled typefaces |
 | `src/config/keycode.cpp` | key codes and capturing a pressed key |
 | `src/config/config.cpp` | TOML load and save |
+| `src/game_math.cpp` | angles, world to screen projection, aim smoothing |
 | `src/os/process.cpp` | reading another process's memory, modules, elf lookups, scanning |
 | `src/cs2/schema.cpp` | the game's schema system: class field offsets by name |
 | `src/cs2/offsets.cpp` | the 115 addresses and field offsets, resolved out of the game |
@@ -91,6 +92,9 @@ duplicated here. A build that cannot find them falls back to the ImGui built in 
 7. **cs2: the offset table** — done, 115 offsets, cross checked against the rust table
 8. **cs2: entities, players, the entity list walk** — done
 9. **cs2: the rest of the player, skeletons, inventory, round stats** — done
-10. cs2: the physics world and real line of sight, replacing the spotted flag
-11. overlay: the OpenGL esp renderer
-12. radar client and the update check
+10. **math: angles, projection, aim smoothing** — done, and covered by tests
+11. cs2: the game loop, the view matrix and the convars
+12. cs2: the physics world and real line of sight, replacing the spotted flag
+13. overlay: the OpenGL esp renderer, the transparent window, uinput
+14. features: aimbot, triggerbot, rcs, and the rest
+15. radar client and the update check
