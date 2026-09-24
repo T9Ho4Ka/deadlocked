@@ -21,6 +21,7 @@ add_executable(deadlocked-native
     src/ui/widgets.cpp
     src/config/config.cpp
     src/config/keycode.cpp
+    src/os/process.cpp
 )
 
 target_include_directories(deadlocked-native PRIVATE src)
@@ -29,3 +30,24 @@ target_compile_definitions(deadlocked-native PRIVATE
     DL_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../cheat/assets")
 target_link_libraries(deadlocked-native PRIVATE imgui tomlplusplus::tomlplusplus)
 target_compile_options(deadlocked-native PRIVATE -Wall -Wextra -Wpedantic)
+
+# tests: no framework, each one is a plain executable that prints its checks
+enable_testing()
+
+add_library(deadlocked-core STATIC
+    src/ui/theme.cpp
+    src/config/config.cpp
+    src/config/keycode.cpp
+    src/os/process.cpp
+)
+target_include_directories(deadlocked-core PUBLIC src)
+target_link_libraries(deadlocked-core PUBLIC imgui tomlplusplus::tomlplusplus)
+target_compile_options(deadlocked-core PRIVATE -Wall -Wextra -Wpedantic)
+
+foreach(test_name config process)
+    add_executable(${test_name}_test tests/${test_name}_test.cpp)
+    target_include_directories(${test_name}_test PRIVATE tests)
+    target_link_libraries(${test_name}_test PRIVATE deadlocked-core)
+    target_compile_options(${test_name}_test PRIVATE -Wall -Wextra)
+    add_test(NAME ${test_name} COMMAND ${test_name}_test)
+endforeach()

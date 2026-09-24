@@ -19,6 +19,17 @@ cmake --build build
 ./build/deadlocked-native
 ```
 
+Tests are plain executables, no framework:
+
+```sh
+ctest --test-dir build --output-on-failure
+```
+
+`process_test` reads this very process's memory, so it needs no game running. `config_test` writes into a scratch directory, never the real config.
+
+Define `DL_READ_ONLY` to compile out every write to the game's memory, the same as the
+rust client's `read-only` feature.
+
 Fedora dependencies: `sudo dnf install gcc-c++ cmake ninja-build glfw-devel mesa-libGL-devel`.
 
 ## Layout
@@ -37,6 +48,7 @@ Fedora dependencies: `sudo dnf install gcc-c++ cmake ninja-build glfw-devel mesa
 | `src/config/font.hpp` | the six bundled typefaces |
 | `src/config/keycode.cpp` | key codes and capturing a pressed key |
 | `src/config/config.cpp` | TOML load and save |
+| `src/os/process.cpp` | reading another process's memory, modules, pattern scanning |
 
 ## Config
 
@@ -58,6 +70,7 @@ duplicated here. A build that cannot find them falls back to the ImGui built in 
 2. **config: player, unsafe, radar** — done
 3. **config: hud, overlay text, fonts** — done
 4. **config: aim, weapons, bones** — done, the config tree is complete
-5. cs2: process access, offsets, entity reading
-6. overlay: the OpenGL esp renderer
-7. radar client and the update check
+5. **os: process access, module lookup, pattern scanning** — done
+6. cs2: the schema offsets and reading entities out of the game
+7. overlay: the OpenGL esp renderer
+8. radar client and the update check
