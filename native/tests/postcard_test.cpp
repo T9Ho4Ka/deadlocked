@@ -3,9 +3,12 @@
 
 #include "check.hpp"
 #include "cs2/snapshot.hpp"
+#include <span>
+
 #include "net/postcard.hpp"
 #include "net/radar.hpp"
 #include "net/update.hpp"
+#include "net/json.hpp"
 #include "net/radar_frame.hpp"
 
 using namespace dl;
@@ -90,6 +93,67 @@ int main() {
     check(actual == expected, "a whole frame matches rust byte for byte");
     if (actual != expected) {
         std::printf("    expected %s\n    actual   %s\n", expected.c_str(), actual.c_str());
+    }
+
+    // --- and reading a frame back, starting from the bytes rust produced ---
+    std::vector<std::uint8_t> reference;
+    for (std::size_t i = 0; i + 1 < expected.size(); i += 2) {
+        reference.push_back(static_cast<std::uint8_t>(
+            std::stoul(expected.substr(i, 2), nullptr, 16)));
+    }
+
+    cs2::Snapshot decoded;
+    check(net::decode_radar_frame(reference, decoded), "rust's own bytes decode cleanly");
+    check(decoded.in_game && !decoded.is_ffa, "the flags come back");
+    check(decoded.weapon == config::Weapon::AK47, "the held weapon comes back");
+    check(decoded.map_name == "de_dust2", "the map name comes back");
+    check(decoded.players.size() == 1 && decoded.friendlies.empty(), "the player lists come back");
+    if (decoded.players.size() == 1) {
+        const cs2::PlayerData& back = decoded.players.front();
+        check(back.steam_id == player.steam_id, "steam id survives");
+        check(back.money == 1600 && back.health == 87 && back.armor == 50, "the numbers survive");
+        check(back.team == cs2::Team::T, "the team survives");
+        check(back.name == "Tony", "the name survives");
+        check(back.weapon == config::Weapon::Awp, "their weapon survives");
+        check(back.position == Vec3(10.0f, -20.0f, 30.0f), "the position survives");
+        check(back.clip_ammo == 30 && back.reserve_ammo == 90, "the ammo survives");
+        check(back.has_defuser && !back.has_helmet, "the flags survive");
+        check(back.rotation == 45.0f, "the rotation survives");
+    }
+    check(decoded.bomb.planted && decoded.bomb.timer == 2.5f, "the bomb survives");
+
+    // a frame cut short must be refused, not read off the end of the buffer
+    const std::span<const std::uint8_t> truncated(reference.data(), reference.size() / 2);
+    cs2::Snapshot partial;
+    check(!net::decode_radar_frame(truncated, partial), "a truncated frame is refused");
+
+    // and a length prefix larger than the bytes behind it must not be believed
+    const std::vector<std::uint8_t> lying{0x01, 0x00, 0x18, 0xFF, 0xFF, 0xFF, 0x7F};
+    cs2::Snapshot nonsense;
+    check(!net::decode_radar_frame(lying, nonsense), "an impossible length is refused");
+
+    // --- json, against what serde_json produced for the same snapshot ---
+    check(net::json_number(45.0f) == "45.0", "an integral float keeps a fractional part");
+    check(net::json_number(2.5f) == "2.5", "and a fractional one is written as it is");
+    check(net::json_number(0.0f) == "0.0", "zero too");
+    check(net::json_number(-20.0f) == "-20.0", "and a negative one");
+    check(net::json_escape("a\"b\\c") == "a\\\"b\\\\c", "quotes and backslashes are escaped");
+
+    const std::string expected_json =
+        R"({"in_game":true,"is_ffa":false,"weapon":"a_k47","players":[{"steam_id":76561198000000000,)"
+        R"("money":1600,"team":"T","health":87,"max_health":100,"armor":50,"position":[10.0,-20.0,30.0],)"
+        R"("name":"Tony","weapon":"awp","ammo":[30,90],"has_defuser":true,"has_helmet":false,)"
+        R"("has_bomb":false,"color":2,"rotation":45.0}],"friendlies":[],"spectators":[],)"
+        R"("local_player":{"steam_id":0,"money":0,"team":"Unassigned","health":0,"max_health":0,)"
+        R"("armor":0,"position":[0.0,0.0,0.0],"name":"","weapon":"none","ammo":[0,0],)"
+        R"("has_defuser":false,"has_helmet":false,"has_bomb":false,"color":0,"rotation":0.0},)"
+        R"("entities":[],"bomb":{"planted":true,"timer":2.5,"being_defused":false,)"
+        R"("position":[1.0,2.0,3.0],"defuse_remain_time":0.0},"map_name":"de_dust2"})";
+    const std::string actual_json = net::snapshot_to_json(snapshot);
+    check(actual_json == expected_json, "the json matches serde_json character for character");
+    if (actual_json != expected_json) {
+        std::printf("    expected %s\n    actual   %s\n", expected_json.c_str(),
+                    actual_json.c_str());
     }
 
     // --- url normalisation, so a host can be pasted in any of the usual forms ---

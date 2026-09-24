@@ -265,8 +265,17 @@ void App::draw_overlay() {
         return;
     }
 
-    // the overlay follows the game's window, and hides itself when there is nothing to draw
-    overlay_.follow(snapshot_.window_position, snapshot_.window_size);
+    // the game reports its own window only while it has focus, so when it does not, the
+    // display server is asked where the window is instead
+    Vec2 position = snapshot_.window_position;
+    Vec2 size = snapshot_.window_size;
+    if (size.x < 2.0f || size.y < 2.0f) {
+        if (const auto found = overlay::Window::find_game_window()) {
+            position = found->first;
+            size = found->second;
+        }
+    }
+    overlay_.follow(position, size);
 
     ImGui::SetCurrentContext(overlay_context_);
     overlay_.begin_frame();

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <optional>
+#include <utility>
+
 #include "math.hpp"
 
 struct GLFWwindow;
@@ -21,6 +24,13 @@ public:
 
     /// Returns false and explains why when the window or its gl context cannot be made.
     bool create();
+    /// Where the game's window is, asked of the display server rather than of the game.
+    ///
+    /// The game only reports its own window while it has keyboard focus, so following that
+    /// alone leaves the overlay a pixel wide whenever the user looks at anything else.
+    /// Empty when no such window can be found.
+    [[nodiscard]] static std::optional<std::pair<Vec2, Vec2>> find_game_window();
+
     /// Moves and resizes the overlay to cover the game. Does nothing when the rectangle is
     /// degenerate, which is what the game reports while it is not the active window.
     void follow(const Vec2& position, const Vec2& size);

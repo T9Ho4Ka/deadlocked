@@ -95,7 +95,131 @@ void write_entity(Writer& out, const cs2::EntityInfo& entity) {
         entity);
 }
 
+void read_player(Reader& in, cs2::PlayerData& player) {
+    player.steam_id = in.u64();
+    player.money = in.i32();
+    player.team = cs2::team_from(static_cast<std::uint8_t>(in.variant()));
+    player.health = in.i32();
+    player.max_health = in.i32();
+    player.armor = in.i32();
+    player.position = in.vec3();
+    player.name = in.string();
+    const std::size_t weapon = in.variant();
+    player.weapon = weapon < config::weapon_count ? static_cast<config::Weapon>(weapon)
+                                                  : config::Weapon::None;
+    player.clip_ammo = in.i32();
+    player.reserve_ammo = in.i32();
+    player.has_defuser = in.boolean();
+    player.has_helmet = in.boolean();
+    player.has_bomb = in.boolean();
+    player.color = in.i32();
+    player.rotation = in.f32();
+}
+
+/// Reads one entity back into whichever native type carries it.
+void read_entity(Reader& in, std::vector<cs2::EntityInfo>& out) {
+    const auto variant = static_cast<EntityVariant>(in.variant());
+    switch (variant) {
+        case EntityVariant::Weapon: {
+            cs2::WeaponInfo info;
+            const std::size_t weapon = in.variant();
+            info.weapon = weapon < config::weapon_count
+                              ? static_cast<config::Weapon>(weapon)
+                              : config::Weapon::None;
+            info.position = in.vec3();
+            info.clip_ammo = in.i32();
+            info.reserve_ammo = in.i32();
+            out.push_back(info);
+            return;
+        }
+        case EntityVariant::Inferno: {
+            cs2::InfernoInfo info;
+            info.entity = in.u64();
+            info.position = in.vec3();
+            // the hull the rust side sends is read past rather than kept
+            const std::size_t hull = in.length();
+            for (std::size_t i = 0; i < hull; ++i) {
+                in.vec3();
+            }
+            out.push_back(info);
+            return;
+        }
+        case EntityVariant::Molotov: {
+            cs2::MolotovInfo info;
+            info.entity = in.u64();
+            info.position = in.vec3();
+            info.is_incendiary = in.boolean();
+            out.push_back(info);
+            return;
+        }
+        case EntityVariant::Chicken: {
+            cs2::ChickenInfo info;
+            info.position = in.vec3();
+            in.boolean();
+            const std::size_t bones = in.length();
+            for (std::size_t i = 0; i < bones; ++i) {
+                in.variant();
+                in.vec3();
+            }
+            out.push_back(info);
+            return;
+        }
+        default: {
+            cs2::GrenadeInfo info;
+            info.entity = in.u64();
+            info.position = in.vec3();
+            info.name = in.string();
+            out.push_back(info);
+            return;
+        }
+    }
+}
+
 }  // namespace
+
+bool decode_radar_frame(std::span<const std::uint8_t> frame, cs2::Snapshot& out) {
+    out.clear();
+    Reader in(frame);
+
+    out.in_game = in.boolean();
+    out.is_ffa = in.boolean();
+    const std::size_t weapon = in.variant();
+    out.weapon = weapon < config::weapon_count ? static_cast<config::Weapon>(weapon)
+                                               : config::Weapon::None;
+
+    const auto read_players = [&](std::vector<cs2::PlayerData>& into) {
+        const std::size_t count = in.length();
+        into.resize(count);
+        for (cs2::PlayerData& player : into) {
+            read_player(in, player);
+        }
+    };
+    read_players(out.players);
+    read_players(out.friendlies);
+
+    const std::size_t spectators = in.length();
+    out.spectators.resize(spectators);
+    for (std::string& name : out.spectators) {
+        name = in.string();
+    }
+
+    read_player(in, out.local_player);
+
+    const std::size_t entities = in.length();
+    out.entities.reserve(entities);
+    for (std::size_t i = 0; i < entities && in.ok(); ++i) {
+        read_entity(in, out.entities);
+    }
+
+    out.bomb.planted = in.boolean();
+    out.bomb.timer = in.f32();
+    out.bomb.being_defused = in.boolean();
+    out.bomb.position = in.vec3();
+    out.bomb.defuse_remaining = in.f32();
+
+    out.map_name = in.string();
+    return in.ok();
+}
 
 std::vector<std::uint8_t> encode_radar_frame(const cs2::Snapshot& snapshot) {
     Writer out;

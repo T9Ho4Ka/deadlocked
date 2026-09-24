@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -80,6 +81,105 @@ private:
     }
 
     std::vector<std::uint8_t> out_;
+};
+
+/// Reads the postcard wire format back. The relay needs this: a client sends a frame and
+/// the server has to turn it into something it can serve.
+///
+/// Every read is bounds checked and sets a failure flag rather than throwing. A truncated
+/// or corrupt frame then reads as zeroes and `ok()` says so, instead of walking off the end
+/// of the buffer.
+class Reader {
+public:
+    explicit Reader(std::span<const std::uint8_t> bytes) : bytes_(bytes) {}
+
+    [[nodiscard]] bool ok() const { return ok_; }
+    [[nodiscard]] bool finished() const { return at_ >= bytes_.size(); }
+
+    std::uint8_t u8() {
+        if (at_ >= bytes_.size()) {
+            ok_ = false;
+            return 0;
+        }
+        return bytes_[at_++];
+    }
+    bool boolean() { return u8() != 0; }
+
+    std::uint64_t varint() {
+        std::uint64_t value = 0;
+        for (int shift = 0; shift < 64; shift += 7) {
+            if (at_ >= bytes_.size()) {
+                ok_ = false;
+                return 0;
+            }
+            const std::uint8_t byte = bytes_[at_++];
+            value |= static_cast<std::uint64_t>(byte & 0x7F) << shift;
+            if ((byte & 0x80) == 0) {
+                return value;
+            }
+        }
+        // more than ten bytes means the encoding is not a valid varint
+        ok_ = false;
+        return 0;
+    }
+
+    std::uint16_t u16() { return static_cast<std::uint16_t>(varint()); }
+    std::uint32_t u32() { return static_cast<std::uint32_t>(varint()); }
+    std::uint64_t u64() { return varint(); }
+
+    std::int32_t i32() { return static_cast<std::int32_t>(unzigzag(varint())); }
+    std::int64_t i64() { return unzigzag(varint()); }
+
+    float f32() {
+        std::uint32_t bits = 0;
+        for (int i = 0; i < 4; ++i) {
+            bits |= static_cast<std::uint32_t>(u8()) << (i * 8);
+        }
+        float value = 0.0f;
+        std::memcpy(&value, &bits, sizeof(value));
+        return value;
+    }
+
+    Vec3 vec3() {
+        const float x = f32();
+        const float y = f32();
+        const float z = f32();
+        return Vec3(x, y, z);
+    }
+
+    std::string string() {
+        const std::uint64_t size = varint();
+        if (!ok_ || size > bytes_.size() - at_) {
+            ok_ = false;
+            return {};
+        }
+        std::string value(reinterpret_cast<const char*>(bytes_.data() + at_),
+                          static_cast<std::size_t>(size));
+        at_ += static_cast<std::size_t>(size);
+        return value;
+    }
+
+    /// A length prefix is trusted only as far as the bytes that are actually there, so a
+    /// claimed million entries in a short frame cannot make the reader allocate for them.
+    std::size_t length() {
+        const std::uint64_t size = varint();
+        if (!ok_ || size > bytes_.size() - at_) {
+            ok_ = false;
+            return 0;
+        }
+        return static_cast<std::size_t>(size);
+    }
+
+    std::size_t variant() { return static_cast<std::size_t>(varint()); }
+
+private:
+    static std::int64_t unzigzag(std::uint64_t value) {
+        return static_cast<std::int64_t>((value >> 1) ^ (~(value & 1) + 1));
+    }
+
+    std::span<const std::uint8_t> bytes_;
+    std::size_t at_ = 0;
+    bool ok_ = true;
 };
 
 }  // namespace dl::net

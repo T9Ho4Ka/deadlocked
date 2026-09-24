@@ -3,6 +3,8 @@ include(FetchContent)
 find_package(OpenGL REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GLFW REQUIRED IMPORTED_TARGET glfw3)
+# the overlay needs raw x11 to take itself out from under the window manager
+pkg_check_modules(X11 IMPORTED_TARGET x11)
 
 # dear imgui ships no build system of its own, so the sources plus the two
 # backends we need are compiled into one static library here
