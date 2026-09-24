@@ -35,3 +35,12 @@ FetchContent_Declare(tomlplusplus
     GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(tomlplusplus)
+
+# glm, header only, for the vectors and matrices the game maths needs
+FetchContent_Declare(glm
+    GIT_REPOSITORY https://github.com/g-truc/glm.git
+    GIT_TAG 1.0.1
+    GIT_SHALLOW TRUE
+)
+set(GLM_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(glm)

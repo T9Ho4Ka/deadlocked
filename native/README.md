@@ -10,8 +10,8 @@ and the status in the footer is a stub.
 
 ## Build
 
-Needs a C++23 compiler, CMake 3.24+, and glfw. Dear ImGui and toml++ are fetched at configure
-time, pinned to `v1.92.9b` and `v3.4.0`.
+Needs a C++23 compiler, CMake 3.24+, and glfw. Dear ImGui, toml++ and glm are fetched at
+configure time, pinned to `v1.92.9b`, `v3.4.0` and `1.0.1`.
 
 ```sh
 cmake -S . -B build -G Ninja
@@ -30,11 +30,13 @@ needs no game running. `config_test` writes into a scratch directory, never the 
 config. Nothing above covers `cs2/schema.cpp` or `cs2/offsets.cpp`: they can only be exercised
 against a live CS2, and a wrong layout constant shows up as a class that is simply not found.
 
-What can be checked without the game is that the ported offset table still matches the
-rust one, offset for offset:
+What can be checked without the game is that the tables the port transcribed still match
+the rust originals. A wrong weapon index or a mistyped mangled class name compiles fine and
+fails silently at runtime, so both are compared against the source they came from:
 
 ```sh
-python3 tools/check_offsets.py
+python3 tools/check_offsets.py   # the 115 offsets
+python3 tools/check_tables.py    # weapons, bones, class names
 ```
 
 Define `DL_READ_ONLY` to compile out every write to the game's memory, the same as the
@@ -61,6 +63,8 @@ Fedora dependencies: `sudo dnf install gcc-c++ cmake ninja-build glfw-devel mesa
 | `src/os/process.cpp` | reading another process's memory, modules, elf lookups, scanning |
 | `src/cs2/schema.cpp` | the game's schema system: class field offsets by name |
 | `src/cs2/offsets.cpp` | the 115 addresses and field offsets, resolved out of the game |
+| `src/cs2/entity.cpp` | entities, players and the planted bomb |
+| `src/cs2/game.cpp` | attaching to the game and walking its entity list |
 
 ## Config
 
@@ -85,6 +89,7 @@ duplicated here. A build that cannot find them falls back to the ImGui built in 
 5. **os: process access, module lookup, pattern scanning** — done
 6. **cs2: the schema reader** — done, but only verifiable against a running game
 7. **cs2: the offset table** — done, 115 offsets, cross checked against the rust table
-8. cs2: reading entities out of the game
-9. overlay: the OpenGL esp renderer
-10. radar client and the update check
+8. **cs2: entities, players, the entity list walk** — done
+9. cs2: the rest of the player, bones, visibility and the features on top
+10. overlay: the OpenGL esp renderer
+11. radar client and the update check
