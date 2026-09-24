@@ -79,7 +79,7 @@ Fedora dependencies: `sudo dnf install gcc-c++ cmake ninja-build glfw-devel mesa
 | `src/cs2/physics.cpp` | the map's collision geometry, read out of the physics world |
 | `src/geometry/bvh.cpp` | the tree over it, and the line of sight queries |
 | `src/overlay/window.cpp` | the transparent click through window that follows the game |
-| `src/overlay/esp.cpp` | boxes, skeletons, snaplines and bars, drawn from a snapshot |
+| `src/overlay/esp.cpp` | boxes, skeletons, bars, dropped entities, the bomb and the hud |
 
 ## Running
 
@@ -122,6 +122,7 @@ duplicated here. A build that cannot find them falls back to the ImGui built in 
     only verifiable with cs2 focused and a key held
 13. **cs2: the physics world and real line of sight** — done
 14. **overlay: the transparent window and the player esp** — done
-15. overlay: dropped weapons, grenades, the bomb timer, the hud and 3d models
-16. features: aimbot, triggerbot, rcs, and the rest, which need uinput
-17. radar client and the update check
+15. **overlay: dropped entities, the bomb timer, the sniper crosshair** — done
+16. overlay: the 3d model renderer, grenade trails, the keybind list
+17. features: aimbot, triggerbot, rcs, and the rest, which need uinput
+18. radar client and the update check

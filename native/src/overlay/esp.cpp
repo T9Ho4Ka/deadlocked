@@ -4,11 +4,15 @@
 #include <array>
 #include <cmath>
 #include <numbers>
+#include <cstdio>
 #include <optional>
+#include <string>
+#include <variant>
 
 #include <imgui.h>
 
 #include "config/config.hpp"
+#include "config/weapon_class.hpp"
 #include "cs2/snapshot.hpp"
 #include "game_math.hpp"
 
@@ -303,22 +307,169 @@ void draw_player(ImDrawList* list, const PlayerData& player, const Snapshot& sna
     }
 }
 
+/// Draws a string with one overlay text category's size, colour and anchor.
+void draw_text(ImDrawList* list, const config::TextCategory& style, const Vec2& at,
+               const std::string& text, float offset_y = 0.0f) {
+    if (text.empty()) {
+        return;
+    }
+    const ImVec2 measured = ImGui::GetFont()->CalcTextSizeA(style.font_size, FLT_MAX, 0.0f,
+                                                            text.c_str());
+    // horizontal alignment comes from the left, centre or right third of the align enum
+    const auto align = static_cast<int>(style.align);
+    const float horizontal = static_cast<float>(align / 3) * 0.5f;   // 0, 0.5, 1
+    const float vertical = static_cast<float>(align % 3) * 0.5f;
+
+    const ImVec2 position(at.x - measured.x * horizontal,
+                          at.y - measured.y * vertical + offset_y);
+    list->AddText(ImGui::GetFont(), style.font_size, position, to_u32(style.color),
+                  text.c_str());
+}
+
+void draw_entities(ImDrawList* list, const Snapshot& snapshot, const config::Config& config) {
+    const config::HudConfig& hud = config.hud;
+
+    for (const cs2::EntityInfo& entity : snapshot.entities) {
+        std::visit(
+            [&](const auto& info) {
+                using T = std::decay_t<decltype(info)>;
+                const auto screen = game_math::world_to_screen(info.position, snapshot.view_matrix,
+                                                               snapshot.window_size);
+                if (!screen.has_value()) {
+                    return;
+                }
+
+                if constexpr (std::is_same_v<T, cs2::WeaponInfo>) {
+                    if (!hud.dropped_weapons) {
+                        return;
+                    }
+                    const config::TextCategory& style =
+                        hud.overlay_text[config::TextSlot::WeaponName];
+                    draw_text(list, style, *screen, std::string(config::enum_name(info.weapon)));
+                    if (info.clip_ammo >= 0) {
+                        draw_text(list, style, *screen,
+                                  std::to_string(info.clip_ammo) + "/" +
+                                      std::to_string(info.reserve_ammo),
+                                  style.font_size);
+                    }
+                } else if constexpr (std::is_same_v<T, cs2::GrenadeInfo>) {
+                    if (!hud.grenade_trails.enabled) {
+                        return;
+                    }
+                    draw_text(list, hud.overlay_text[config::TextSlot::GrenadeName], *screen,
+                              info.name);
+                } else if constexpr (std::is_same_v<T, cs2::MolotovInfo>) {
+                    if (!hud.grenade_trails.enabled) {
+                        return;
+                    }
+                    const ui::Color& color =
+                        info.is_incendiary ? hud.grenade_trails.incendiary : hud.grenade_trails.molotov;
+                    list->AddCircle(to_im(*screen), 8.0f, to_u32(color), 0, hud.line_width);
+                    draw_text(list, hud.overlay_text[config::TextSlot::GrenadeName], *screen,
+                              info.is_incendiary ? "Incendiary" : "Molotov");
+                } else if constexpr (std::is_same_v<T, cs2::InfernoInfo>) {
+                    if (!hud.grenade_trails.enabled) {
+                        return;
+                    }
+                    list->AddCircle(to_im(*screen), 12.0f, to_u32(hud.grenade_trails.molotov), 0,
+                                    hud.line_width);
+                } else {
+                    // a chicken, which is here for the same reason it is in the game
+                    list->AddCircle(to_im(*screen), 5.0f, IM_COL32(255, 200, 80, 255), 0,
+                                    hud.line_width);
+                }
+            },
+            entity);
+    }
+}
+
+void draw_bomb(ImDrawList* list, const Snapshot& snapshot, const config::Config& config) {
+    if (!config.hud.bomb_timer || !snapshot.bomb.planted) {
+        return;
+    }
+
+    const config::TextCategory& style = config.hud.overlay_text[config::TextSlot::BombTimer];
+    const auto screen = game_math::world_to_screen(snapshot.bomb.position, snapshot.view_matrix,
+                                                   snapshot.window_size);
+    if (screen.has_value()) {
+        char text[32];
+        std::snprintf(text, sizeof(text), "%.3f", snapshot.bomb.timer);
+        draw_text(list, style, *screen, text);
+        if (snapshot.bomb.being_defused) {
+            char defusing[48];
+            std::snprintf(defusing, sizeof(defusing), "defusing %.3f",
+                          snapshot.bomb.defuse_remaining);
+            draw_text(list, style, *screen, defusing, style.font_size);
+        }
+    }
+
+    // a bar across the bottom of the screen, draining as the fuse burns down
+    const float fraction = std::clamp(snapshot.bomb.timer / 40.0f, 0.0f, 1.0f);
+    const ImU32 color = health_color(static_cast<std::int32_t>(fraction * 100.0f), 100, 255);
+    list->AddLine(ImVec2(0.0f, snapshot.window_size.y),
+                  ImVec2(snapshot.window_size.x * fraction, snapshot.window_size.y), color,
+                  config.hud.line_width * 3.0f);
+}
+
+void draw_crosshair(ImDrawList* list, const Snapshot& snapshot, const config::Config& config) {
+    const config::CrosshairConfig& crosshair = config.hud.sniper_crosshair;
+    // only while scoped weapons are held, which is when the game hides its own crosshair
+    if (!crosshair.enabled || config::weapon_class(snapshot.weapon) != config::WeaponClass::Sniper) {
+        return;
+    }
+
+    const Vec2 centre = snapshot.window_size * 0.5f;
+    const float gap = crosshair.gap * 0.5f;
+    const ImU32 color = to_u32(crosshair.color);
+    const float width = crosshair.line_width;
+    const float length = crosshair.line_length;
+
+    list->AddLine(ImVec2(centre.x + gap, centre.y), ImVec2(centre.x + gap + length, centre.y),
+                  color, width);
+    list->AddLine(ImVec2(centre.x - gap, centre.y), ImVec2(centre.x - gap - length, centre.y),
+                  color, width);
+    list->AddLine(ImVec2(centre.x, centre.y + gap), ImVec2(centre.x, centre.y + gap + length),
+                  color, width);
+    list->AddLine(ImVec2(centre.x, centre.y - gap), ImVec2(centre.x, centre.y - gap - length),
+                  color, width);
+}
+
+void draw_spectators(ImDrawList* list, const Snapshot& snapshot, const config::Config& config) {
+    if (!config.hud.spectator_list || snapshot.spectators.empty()) {
+        return;
+    }
+    const config::TextCategory& style = config.hud.overlay_text[config::TextSlot::SpectatorList];
+    Vec2 at(12.0f, snapshot.window_size.y * 0.5f);
+    for (const std::string& name : snapshot.spectators) {
+        draw_text(list, style, at, name);
+        at.y += style.font_size + 2.0f;
+    }
+}
+
 }  // namespace
 
 void draw_esp(const Snapshot& snapshot, const config::Config& config) {
-    if (!snapshot.in_game || !config.player.enabled) {
+    if (!snapshot.in_game) {
         return;
     }
 
     ImDrawList* list = ImGui::GetBackgroundDrawList();
-    for (const PlayerData& player : snapshot.players) {
-        draw_player(list, player, snapshot, config);
+
+    if (config.player.enabled) {
+        for (const PlayerData& player : snapshot.players) {
+            draw_player(list, player, snapshot, config);
+        }
     }
-    if (config.player.show_friendlies) {
+    if (config.player.enabled && config.player.show_friendlies) {
         for (const PlayerData& player : snapshot.friendlies) {
             draw_player(list, player, snapshot, config);
         }
     }
+
+    draw_entities(list, snapshot, config);
+    draw_bomb(list, snapshot, config);
+    draw_crosshair(list, snapshot, config);
+    draw_spectators(list, snapshot, config);
 }
 
 }  // namespace dl::overlay
