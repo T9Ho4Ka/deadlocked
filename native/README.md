@@ -114,10 +114,13 @@ A weapon left at its defaults is not written out, so a config file carries only 
 the user actually overrode rather than 67 near identical blocks. A missing weapon entry
 reads back as the defaults, which is the same thing it would have been written as.
 
-Written to `$XDG_CONFIG_HOME/deadlocked/native.toml`, deliberately a **different file** from
-the Rust client's `deadlocked.toml`. A half ported native build must not be able to corrupt a
-config the working client depends on. The two formats get merged once the config module is
-fully ported.
+Profiles live in `$XDG_CONFIG_HOME/deadlocked/native/`, deliberately a **different**
+directory from the Rust client's. A half ported native build must not be able to corrupt a
+config the working client depends on.
+
+The Config tab switches between profiles, makes new ones from what is on screen, and deletes
+them, the same way the Rust client does. An earlier single `native.toml` is moved in as the
+default profile the first time.
 
 Fonts are read from `../cheat/assets` through the `DL_ASSETS_DIR` define rather than being
 duplicated here. A build that cannot find them falls back to the ImGui built in font.

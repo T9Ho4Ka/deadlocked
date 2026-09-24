@@ -195,7 +195,8 @@ void apply(const ThemeConfig& config, Color accent) {
     // popups and dropdowns stay opaque so their text keeps its contrast
     set(style, ImGuiCol_PopupBg, palette.base);
     set(style, ImGuiCol_Border, palette.overlay);
-    set(style, ImGuiCol_BorderShadow, Color(0, 0, 0, 0));
+    set(style, ImGuiCol_BorderShadow,
+        config.shadows ? Color(0, 0, 0, 90) : Color(0, 0, 0, 0));
 
     set(style, ImGuiCol_FrameBg, palette.surface);
     set(style, ImGuiCol_FrameBgHovered, hovered);

@@ -105,6 +105,9 @@ struct ThemeConfig {
     /// pulls secondary text towards the primary text color, 0..=1
     float text_contrast = 0.0f;
     float corner_radius = 6.0f;
+    /// egui draws a real blurred drop shadow; imgui has only a border shadow, so this
+    /// is the same setting with a weaker effect rather than the same look
+    bool shadows = true;
 
     ThemeConfig();
 

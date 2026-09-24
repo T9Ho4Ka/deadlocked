@@ -1,6 +1,7 @@
 #include "config/config.hpp"
 
 #include <algorithm>
+#include <ranges>
 #include <cstdio>
 #include <cstdlib>
 #include <random>
@@ -246,15 +247,99 @@ std::string new_uuid() {
     return out;
 }
 
-std::filesystem::path config_path() { return base_path() / "native.toml"; }
+std::filesystem::path config_dir() { return base_path() / "native"; }
 
-Config load() {
+namespace {
+
+/// which profile is selected, remembered in a file of its own so it survives a restart and
+/// is not itself part of any profile
+std::filesystem::path selected_marker() { return base_path() / "native-current"; }
+
+std::string read_selected() {
+    std::ifstream in(selected_marker());
+    std::string name;
+    if (in) {
+        std::getline(in, name);
+    }
+    // a name with a separator in it would escape the config directory
+    if (name.empty() || name.find('/') != std::string::npos || name == "." || name == "..") {
+        return "deadlocked.toml";
+    }
+    return name;
+}
+
+}  // namespace
+
+/// Earlier builds kept a single native.toml next to the directory profiles now live in.
+/// It is moved in as the default profile the first time, rather than being left behind.
+void migrate_single_config() {
+    const std::filesystem::path legacy = base_path() / "native.toml";
+    const std::filesystem::path destination = config_dir() / "deadlocked.toml";
+    std::error_code error;
+    if (!std::filesystem::exists(legacy, error) || std::filesystem::exists(destination, error)) {
+        return;
+    }
+    std::filesystem::rename(legacy, destination, error);
+    if (!error) {
+        std::fprintf(stderr, "moved the old native.toml in as %s\n",
+                     destination.filename().c_str());
+    }
+}
+
+std::vector<std::filesystem::path> available_configs() {
+    std::vector<std::filesystem::path> found;
+    std::error_code error;
+    std::filesystem::create_directories(config_dir(), error);
+    migrate_single_config();
+
+    for (const auto& entry : std::filesystem::directory_iterator(config_dir(), error)) {
+        if (entry.is_regular_file(error) && entry.path().extension() == ".toml") {
+            found.push_back(entry.path());
+        }
+    }
+    std::ranges::sort(found);
+
+    if (found.empty()) {
+        // there is always at least one profile to be editing
+        const std::filesystem::path fallback = config_dir() / "deadlocked.toml";
+        save_to(Config{}, fallback);
+        found.push_back(fallback);
+    }
+    return found;
+}
+
+std::filesystem::path config_path() { return config_dir() / read_selected(); }
+
+void select_config(const std::filesystem::path& path) {
+    std::error_code error;
+    std::filesystem::create_directories(base_path(), error);
+    std::ofstream out(selected_marker(), std::ios::trunc);
+    if (out) {
+        out << path.filename().string() << "\n";
+    }
+}
+
+bool delete_config(const std::filesystem::path& path) {
+    if (available_configs().size() <= 1) {
+        return false;
+    }
+    std::error_code error;
+    const bool removed = std::filesystem::remove(path, error);
+    if (removed && path == config_path()) {
+        select_config(available_configs().front());
+    }
+    return removed;
+}
+
+Config load() { return load_from(config_path()); }
+
+Config load_from(const std::filesystem::path& path) {
     Config config;
 
     // a missing or broken file simply leaves every field at its default
-    const toml::table table = [] {
+    const toml::table table = [&path] {
         try {
-            return toml::parse_file(config_path().string());
+            return toml::parse_file(path.string());
         } catch (const std::exception&) {
             return toml::table{};
         }
@@ -275,6 +360,7 @@ Config load() {
     target.text_scale = theme["text_scale"].value_or(target.text_scale);
     target.text_contrast = theme["text_contrast"].value_or(target.text_contrast);
     target.corner_radius = theme["corner_radius"].value_or(target.corner_radius);
+    target.shadows = theme["shadows"].value_or(target.shadows);
 
     const toml::node_view<const toml::node> custom = theme["custom"];
     CustomPalette& palette = target.custom;
@@ -402,7 +488,9 @@ Config load() {
     return config;
 }
 
-bool save(const Config& config) {
+bool save(const Config& config) { return save_to(config, config_path()); }
+
+bool save_to(const Config& config, const std::filesystem::path& path) {
     const ui::ThemeConfig& theme = config.theme;
     const CustomPalette& palette = theme.custom;
 
@@ -426,6 +514,7 @@ bool save(const Config& config) {
         {"text_scale", theme.text_scale},
         {"text_contrast", theme.text_contrast},
         {"corner_radius", theme.corner_radius},
+        {"shadows", theme.shadows},
         {"custom", std::move(custom)},
     };
 
@@ -551,7 +640,6 @@ bool save(const Config& config) {
         {"radar", std::move(radar_table)},
     };
 
-    const std::filesystem::path path = config_path();
     std::error_code error;
     std::filesystem::create_directories(path.parent_path(), error);
     if (error) {

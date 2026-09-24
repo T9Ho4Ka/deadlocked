@@ -145,8 +145,10 @@ bool App::init() {
         std::fprintf(stderr, "virtual mouse ready\n");
     }
 
+    state_.available_configs = config::available_configs();
+    state_.current_config = config::config_path();
     state_.config = config::load();
-    std::fprintf(stderr, "config: %s\n", config::config_path().c_str());
+    std::fprintf(stderr, "config: %s\n", state_.current_config.c_str());
     load_fonts(state_.fonts, ui::body_size * state_.config.theme.text_scale);
     ui::apply(state_.config.theme, state_.config.accent_color);
 
@@ -212,8 +214,8 @@ void App::run() {
 
         if (state_.config_dirty) {
             state_.config_dirty = false;
-            if (!config::save(state_.config)) {
-                std::fprintf(stderr, "could not write %s\n", config::config_path().c_str());
+            if (!config::save_to(state_.config, state_.current_config)) {
+                std::fprintf(stderr, "could not write %s\n", state_.current_config.c_str());
             }
         }
     }

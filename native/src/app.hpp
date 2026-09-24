@@ -5,6 +5,9 @@
 #include <utility>
 
 #include <chrono>
+#include <filesystem>
+#include <string>
+#include <vector>
 #include <optional>
 
 #include "config/config.hpp"
@@ -68,6 +71,10 @@ struct AppState {
     std::array<ImFont*, config::font_count> fonts{};
     /// what the radar thread last reported, so the ui can show it
     net::RadarStatus radar_status = net::RadarStatus::Disabled;
+    /// the config profiles on disk, and the name being typed for a new one
+    std::vector<std::filesystem::path> available_configs;
+    std::filesystem::path current_config;
+    std::string new_config_name;
 
     /// the weapon block the aimbot tab is currently editing
     config::WeaponConfig& weapon_config() {

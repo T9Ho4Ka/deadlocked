@@ -2,6 +2,7 @@
 
 #include <array>
 #include <filesystem>
+#include <vector>
 #include <string_view>
 #include <utility>
 
@@ -44,12 +45,25 @@ struct Config {
 /// Random uuid v4, used for the radar session id.
 std::string new_uuid();
 
-/// Config file of the native client. Deliberately a different file from the rust client's
-/// deadlocked.toml, so a half ported native build cannot corrupt a working config.
+/// Where the native client keeps its configs. Deliberately its own directory, so a half
+/// ported native build cannot corrupt a config the rust client depends on.
+std::filesystem::path config_dir();
+
+/// Every config profile in that directory, sorted, with the default one created if the
+/// directory is empty.
+std::vector<std::filesystem::path> available_configs();
+
+/// Path of the profile currently selected, which is remembered across runs.
 std::filesystem::path config_path();
+void select_config(const std::filesystem::path& path);
 
 /// Returns a default config when the file is missing or unreadable, never throws.
 Config load();
+Config load_from(const std::filesystem::path& path);
 bool save(const Config& config);
+bool save_to(const Config& config, const std::filesystem::path& path);
+
+/// Removes a profile. The last remaining one is kept, since there has to be one.
+bool delete_config(const std::filesystem::path& path);
 
 }  // namespace dl::config

@@ -22,12 +22,87 @@ void help(const char* text) {
     }
 }
 
-void appearance_tab(AppState& state) {
+/// The profile list: which config file is in use, and making or removing them.
+void config_profiles(AppState& state, const Palette& palette, Color accent, float scale) {
+    if (!section("Configs", palette, accent, scale)) {
+        return;
+    }
+
+    if (ImGui::Button("Refresh")) {
+        state.available_configs = config::available_configs();
+    }
+
+    ImGui::SetNextItemWidth(160.0f);
+    ImGui::InputTextWithHint("##new_config", "new profile", &state.new_config_name);
+    ImGui::SameLine();
+    if (ImGui::Button("+") && !state.new_config_name.empty()) {
+        std::string name = state.new_config_name;
+        if (!name.ends_with(".toml")) {
+            name += ".toml";
+        }
+        const std::filesystem::path path = config::config_dir() / name;
+        // a new profile starts from what is on screen, not from the defaults
+        if (config::save_to(state.config, path)) {
+            config::select_config(path);
+            state.current_config = path;
+            state.available_configs = config::available_configs();
+            state.new_config_name.clear();
+        }
+    }
+
+    ImGui::Spacing();
+    std::filesystem::path to_open;
+    std::filesystem::path to_delete;
+    for (const std::filesystem::path& path : state.available_configs) {
+        const std::string name = path.filename().string();
+        ImGui::PushID(name.c_str());
+        if (ImGui::Selectable(name.c_str(), path == state.current_config,
+                              ImGuiSelectableFlags_None, ImVec2(140.0f, 0.0f))) {
+            to_open = path;
+        }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Delete")) {
+            to_delete = path;
+        }
+        ImGui::PopID();
+    }
+
+    // the list is only changed after it has been walked
+    if (!to_open.empty()) {
+        state.config = config::load_from(to_open);
+        config::select_config(to_open);
+        state.current_config = to_open;
+        state.mark_style_changed();
+    }
+    if (!to_delete.empty() && config::delete_config(to_delete)) {
+        state.available_configs = config::available_configs();
+        if (to_delete == state.current_config) {
+            state.current_config = config::config_path();
+            state.config = config::load_from(state.current_config);
+            state.mark_style_changed();
+        }
+    }
+}
+
+void appearance_settings(AppState& state) {
     config::Config& config = state.config;
     ThemeConfig& theme = config.theme;
     const Palette palette = theme.palette();
     const Color accent = config.accent_color;
     const float scale = theme.text_scale;
+
+    if (section("Config", palette, accent, scale)) {
+        if (ImGui::Button("Reset")) {
+            // back to the defaults, without touching the other profiles
+            config = config::Config{};
+            state.mark_style_changed();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Config Folder")) {
+            open_url(("file://" + config::config_dir().string()).c_str());
+        }
+        ImGui::TextDisabled("%s", state.current_config.filename().c_str());
+    }
 
     if (section("Appearance", palette, accent, scale)) {
         if (ImGui::BeginCombo("Theme", theme_name(theme.theme).data())) {
@@ -69,6 +144,10 @@ void appearance_tab(AppState& state) {
         if (ImGui::SliderFloat("Corner Radius", &theme.corner_radius, 0.0f, 16.0f, "%.0f")) {
             state.mark_style_changed();
         }
+        if (ImGui::Checkbox("Shadows", &theme.shadows)) {
+            state.mark_style_changed();
+        }
+        help("imgui only has a border shadow, so this is subtler than in the rust client");
     }
 
     if (section("Gradient", palette, accent, scale)) {
@@ -588,6 +667,25 @@ void aimbot_tab(AppState& state) {
 
     if (changed) {
         state.config_dirty = true;
+    }
+}
+
+/// The Config tab: settings on the left, the profiles on disk on the right, the same way
+/// the rust client lays it out.
+void appearance_tab(AppState& state) {
+    const Palette palette = state.config.theme.palette();
+    const Color accent = state.config.accent_color;
+    const float scale = state.config.theme.text_scale;
+
+    if (ImGui::BeginTable("##config_columns", 2)) {
+        ImGui::TableNextColumn();
+        ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
+        appearance_settings(state);
+        ImGui::PopItemWidth();
+
+        ImGui::TableNextColumn();
+        config_profiles(state, palette, accent, scale);
+        ImGui::EndTable();
     }
 }
 
