@@ -26,6 +26,7 @@ add_executable(deadlocked-native
     src/cs2/offsets.cpp
     src/cs2/entity.cpp
     src/cs2/game.cpp
+    src/cs2/snapshot.cpp
     src/game_math.cpp
 )
 
@@ -48,6 +49,7 @@ add_library(deadlocked-core STATIC
     src/cs2/offsets.cpp
     src/cs2/entity.cpp
     src/cs2/game.cpp
+    src/cs2/snapshot.cpp
     src/game_math.cpp
 )
 target_include_directories(deadlocked-core PUBLIC src)

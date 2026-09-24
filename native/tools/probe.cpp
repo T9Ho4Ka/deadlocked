@@ -204,6 +204,36 @@ int main() {
                 game_math::angles_to_fov(own_angles, round_trip));
     std::printf("eye is %.1f above the feet\n", eye.z - local->pawn().position(*game).z);
 
+    heading("snapshot");
+    // the whole frame copied out of the game, which is what the overlay will draw from
+    cs2::Snapshot snapshot;
+    game->build_snapshot(snapshot);
+    std::printf("in game       %s\n", yes_no(snapshot.in_game));
+    std::printf("map           %s\n", snapshot.map_name.c_str());
+    std::printf("free for all  %s\n", yes_no(snapshot.is_ffa));
+    std::printf("window        %.0f,%.0f  size %.0fx%.0f%s\n", snapshot.window_position.x,
+                snapshot.window_position.y, snapshot.window_size.x, snapshot.window_size.y,
+                snapshot.window_size.x <= 1.0f
+                    ? "   (sdl reports no keyboard focus, so the game is not the active window)"
+                    : "");
+    std::printf("enemies %zu, friendlies %zu, entities %zu\n", snapshot.players.size(),
+                snapshot.friendlies.size(), snapshot.entities.size());
+    std::printf("sensitivity   %.2f\n", game->sensitivity());
+    std::printf("game clock    %.1f s\n", game->current_time());
+    if (!snapshot.players.empty()) {
+        const cs2::PlayerData& first = snapshot.players.front();
+        std::printf("first enemy   %s, hp %d, ammo %d/%d, %zu bones, visible %s\n",
+                    first.name.c_str(), first.health, first.clip_ammo, first.reserve_ammo,
+                    first.bones.size(), yes_no(first.visible));
+        // the snapshot is a copy, so its projection must agree with the live read above
+        const auto on_screen =
+            game_math::world_to_screen(first.position, snapshot.view_matrix, snapshot.window_size);
+        std::printf("              projects to %s\n",
+                    on_screen ? "the screen" : "off screen");
+    }
+    std::printf("local ammo    %d/%d, money %d\n", snapshot.local_player.clip_ammo,
+                snapshot.local_player.reserve_ammo, snapshot.local_player.money);
+
     if (game->planted_c4().has_value()) {
         std::printf("bomb          planted, ticking %s, being defused %s\n",
                     yes_no(game->planted_c4()->is_ticking(*game)),

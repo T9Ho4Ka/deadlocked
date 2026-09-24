@@ -73,7 +73,8 @@ Fedora dependencies: `sudo dnf install gcc-c++ cmake ninja-build glfw-devel mesa
 | `src/cs2/schema.cpp` | the game's schema system: class field offsets by name |
 | `src/cs2/offsets.cpp` | the 115 addresses and field offsets, resolved out of the game |
 | `src/cs2/entity.cpp` | entities, players, skeletons and the planted bomb |
-| `src/cs2/game.cpp` | attaching to the game and walking its entity list |
+| `src/cs2/game.cpp` | attaching, the entity list walk, convars and the snapshot |
+| `src/cs2/snapshot.cpp` | one frame copied out of the game for the overlay to draw |
 
 ## Config
 
@@ -101,8 +102,9 @@ duplicated here. A build that cannot find them falls back to the ImGui built in 
 8. **cs2: entities, players, the entity list walk** — done
 9. **cs2: the rest of the player, skeletons, inventory, round stats** — done
 10. **math: angles, projection, aim smoothing** — done, and covered by tests
-11. cs2: the game loop, the view matrix and the convars
-12. cs2: the physics world and real line of sight, replacing the spotted flag
-13. overlay: the OpenGL esp renderer, the transparent window, uinput
-14. features: aimbot, triggerbot, rcs, and the rest
-15. radar client and the update check
+11. **cs2: the snapshot, the view matrix and the convars** — done
+12. cs2: the input layer and the tick loop
+13. cs2: the physics world and real line of sight, replacing the spotted flag
+14. overlay: the OpenGL esp renderer, the transparent window, uinput
+15. features: aimbot, triggerbot, rcs, and the rest
+16. radar client and the update check

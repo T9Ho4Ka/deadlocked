@@ -3,6 +3,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include <array>
+
 #include "constants.hpp"
 
 namespace dl::cs2 {
@@ -22,6 +24,15 @@ constexpr std::uintptr_t identity_name_pointer = 0x20;
 /// the rtti pointer sits just before the vtable
 constexpr std::uintptr_t vtable_rtti = 0x8;
 constexpr std::uintptr_t rtti_name = 0x8;
+
+/// a convar keeps its value here, past the name and the flags
+constexpr std::uintptr_t convar_value = 0x58;
+/// inside the game's globals
+constexpr std::uintptr_t globals_current_time = 0x30;
+constexpr std::uintptr_t globals_map_name = 0x198;
+/// an sdl window keeps its position and then its size
+constexpr std::uintptr_t sdl_window_position = 0x18;
+constexpr std::uintptr_t sdl_window_size = 0x18 + 0x08;
 
 template <typename T>
 T read_from(const std::vector<std::uint8_t>& buffer, std::size_t offset) {
@@ -84,6 +95,52 @@ std::string Game::class_name_of(std::uintptr_t entity) const {
     return process_.read_string(process_.read<std::uintptr_t>(rtti + rtti_name));
 }
 
+float Game::sensitivity() const {
+    return process_.read<float>(offsets_.convar.sensitivity + convar_value);
+}
+
+bool Game::is_ffa() const {
+    return process_.read<std::uint8_t>(offsets_.convar.ffa + convar_value) == 1;
+}
+
+float Game::current_time() const {
+    const auto globals = process_.read<std::uintptr_t>(offsets_.direct.global_vars);
+    if (globals == 0) {
+        return 0.0f;
+    }
+    return process_.read<float>(globals + globals_current_time);
+}
+
+std::string Game::current_map() const {
+    const auto globals = process_.read<std::uintptr_t>(offsets_.direct.global_vars);
+    if (globals == 0) {
+        return {};
+    }
+    const auto name = process_.read<std::uintptr_t>(globals + globals_map_name);
+    if (name == 0) {
+        return {};
+    }
+    return process_.read_string(name);
+}
+
+std::pair<Vec2, Vec2> Game::window_bounds() const {
+    // this is sdl's keyboard focus window, which is null whenever the game is not the
+    // active window. a one by one size is the sign of that, not of a failed read
+    const auto window = process_.read<std::uintptr_t>(offsets_.direct.sdl_window);
+    if (window == 0) {
+        // one rather than zero, so anything dividing by it survives
+        return {Vec2(0.0f), Vec2(1.0f)};
+    }
+    const auto position = process_.read<std::array<std::int32_t, 2>>(window + sdl_window_position);
+    const auto size = process_.read<std::array<std::int32_t, 2>>(window + sdl_window_size);
+    return {Vec2(static_cast<float>(position[0]), static_cast<float>(position[1])),
+            Vec2(static_cast<float>(size[0]), static_cast<float>(size[1]))};
+}
+
+Mat4 Game::view_matrix() const {
+    return process_.read<Mat4>(offsets_.direct.view_matrix);
+}
+
 void Game::cache_entities() {
     players_.clear();
     dead_players_.clear();
@@ -101,6 +158,124 @@ void Game::cache_entities() {
         process_.read_vec(offsets_.interface.entity, 8 * bucket_count);
     for (std::size_t bucket = 0; bucket < bucket_count; ++bucket) {
         scan_bucket(bucket, read_from<std::uintptr_t>(pointers, bucket * 8), *local_player_);
+    }
+}
+
+PlayerData Game::player_data(const Player& player, const Player& local) {
+    PlayerData data;
+    const BaseEntity& pawn = player.pawn();
+
+    data.steam_id = player.steam_id(*this);
+    data.money = player.money(*this);
+    data.team = pawn.team(*this);
+    data.health = pawn.health(*this);
+    data.max_health = pawn.max_health(*this);
+    data.armor = player.armor(*this);
+    data.position = pawn.position(*this);
+    data.name = player.name(*this);
+    data.model_name = player.model_name(*this);
+    data.weapon = player.weapon(*this);
+    data.clip_ammo = player.clip_ammo(*this);
+    data.reserve_ammo = player.reserve_ammo(*this);
+    data.has_defuser = player.has_defuser(*this);
+    data.has_helmet = player.has_helmet(*this);
+    data.has_bomb = player.has_bomb(*this);
+    data.color = player.color(*this);
+    data.rotation = player.rotation(*this);
+
+    data.skeleton = player.skeleton(*this, local);
+    data.bones = Player::bone_positions(data.skeleton);
+    const auto head = data.bones.find(config::Bones::Head);
+    if (head != data.bones.end()) {
+        data.head = head->second;
+    }
+    // without the physics world to trace against, the game's own spotted flag is the
+    // closest thing to line of sight there is
+    data.visible = player.spotted_by_local(*this);
+
+    const auto [mins, maxs] = pawn.collision_bounds(*this);
+    data.collision_mins = mins;
+    data.collision_maxs = maxs;
+    data.collision_transform = pawn.collision_transform(*this);
+
+    return data;
+}
+
+void Game::build_snapshot(Snapshot& out) {
+    out.clear();
+
+    const auto [position, size] = window_bounds();
+    out.window_position = position;
+    out.window_size = size;
+
+    if (!local_player_.has_value()) {
+        return;
+    }
+    const Player& local = *local_player_;
+
+    const Team local_team = local.pawn().team(*this);
+    if (!is_playing(local_team)) {
+        // in the menu, or still picking a side
+        return;
+    }
+
+    out.is_ffa = is_ffa();
+    for (const Player& player : players_) {
+        PlayerData data = player_data(player, local);
+        const bool friendly = !out.is_ffa && data.team == local_team;
+        (friendly ? out.friendlies : out.players).push_back(std::move(data));
+    }
+
+    out.local_player = player_data(local, local);
+    // the local player is always visible to themselves
+    out.local_player.visible = true;
+
+    for (const Entity& entity : entities_) {
+        std::visit(
+            [&](const auto& value) {
+                using T = std::decay_t<decltype(value)>;
+                const Vec3 at = value.entity.position(*this);
+                if constexpr (std::is_same_v<T, DroppedWeapon>) {
+                    out.entities.push_back(WeaponInfo{
+                        value.weapon, at,
+                        process_.read<std::int32_t>(value.entity.address() +
+                                                    offsets_.weapon.clip_primary),
+                        process_.read<std::int32_t>(value.entity.address() +
+                                                    offsets_.weapon.reserve_ammo)});
+                } else if constexpr (std::is_same_v<T, Molotov>) {
+                    out.entities.push_back(MolotovInfo{at, value.is_incendiary});
+                } else if constexpr (std::is_same_v<T, Inferno>) {
+                    out.entities.push_back(InfernoInfo{at});
+                } else if constexpr (std::is_same_v<T, Chicken>) {
+                    out.entities.push_back(ChickenInfo{at});
+                } else if constexpr (std::is_same_v<T, Smoke>) {
+                    out.entities.push_back(GrenadeInfo{at, "Smoke"});
+                } else if constexpr (std::is_same_v<T, Flashbang>) {
+                    out.entities.push_back(GrenadeInfo{at, "Flashbang"});
+                } else if constexpr (std::is_same_v<T, HeGrenade>) {
+                    out.entities.push_back(GrenadeInfo{at, "HE Grenade"});
+                } else {
+                    out.entities.push_back(GrenadeInfo{at, "Decoy"});
+                }
+            },
+            entity);
+    }
+
+    out.weapon = local.weapon(*this);
+    out.in_game = true;
+    out.map_name = current_map();
+    out.view_matrix = view_matrix();
+    out.view_angles = local.view_angles(*this);
+
+    if (planted_c4_.has_value()) {
+        const PlantedC4& bomb = *planted_c4_;
+        out.bomb.planted = bomb.is_ticking(*this);
+        out.bomb.position = bomb.entity().position(*this);
+        out.bomb.being_defused = bomb.being_defused(*this);
+        // both countdowns are absolute game times, so the clock has to be taken off them
+        const float now = current_time();
+        out.bomb.timer = bomb.blow_time(*this) - now;
+        out.bomb.defuse_remaining = bomb.defuse_time(*this) - now;
     }
 }
 

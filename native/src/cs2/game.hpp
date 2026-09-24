@@ -6,6 +6,7 @@
 
 #include "cs2/entity.hpp"
 #include "cs2/offsets.hpp"
+#include "cs2/snapshot.hpp"
 #include "os/process.hpp"
 
 namespace dl::cs2 {
@@ -46,6 +47,23 @@ public:
     [[nodiscard]] std::uintptr_t entity_from_handle(std::int32_t handle) const;
     /// A dropped weapon has no owner; one being carried does.
     [[nodiscard]] bool entity_has_owner(std::uintptr_t entity) const;
+    /// Copies this frame's worth of the game into `out`, which is what the overlay draws
+    /// from. Everything copied is a value: by the time it is drawn, the entity behind it
+    /// may be gone.
+    void build_snapshot(Snapshot& out);
+
+    // --- convars and globals ---
+    /// Mouse sensitivity the player has set, needed to convert aim movement to mouse counts.
+    [[nodiscard]] float sensitivity() const;
+    /// Free for all, where teammates are enemies too.
+    [[nodiscard]] bool is_ffa() const;
+    /// The game's own clock, in seconds.
+    [[nodiscard]] float current_time() const;
+    [[nodiscard]] std::string current_map() const;
+    /// Where the game's window sits and how big it is, both zero sized when there is none.
+    [[nodiscard]] std::pair<Vec2, Vec2> window_bounds() const;
+    [[nodiscard]] Mat4 view_matrix() const;
+
     /// Mangled rtti name of an entity's class, used to tell entities apart.
     [[nodiscard]] std::string class_name_of(std::uintptr_t entity) const;
 
@@ -55,6 +73,8 @@ private:
 
     void scan_bucket(std::size_t bucket_index, std::uintptr_t bucket_pointer,
                      const Player& local);
+    /// Copies one player out of the game, skeleton and all.
+    [[nodiscard]] PlayerData player_data(const Player& player, const Player& local);
 
     os::Process process_;
     Offsets offsets_;
