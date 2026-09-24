@@ -1,6 +1,9 @@
 #include <cstdint>
 
 #include "check.hpp"
+#include <cmath>
+
+#include "cs2/entity.hpp"
 #include "cs2/types.hpp"
 #include "cs2/weapon_index.hpp"
 
@@ -91,6 +94,62 @@ int main() {
               prefix_matches(cs2::class_name::decoy) && prefix_matches(cs2::class_name::inferno) &&
               prefix_matches(cs2::class_name::chicken),
           "every mangled name's length prefix matches the name");
+
+    // --- bone transforms ---
+    // three floats of position, one of padding, then x y z w of the rotation
+    const std::array<float, 8> upright{1.0f, 2.0f, 3.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f};
+    const cs2::BoneTransform bone = cs2::BoneTransform::from_memory(upright);
+    check(bone.position == Vec3(1.0f, 2.0f, 3.0f), "bone position comes from the first three");
+    check(bone.visibility == 1.0f, "a fresh bone starts visible");
+    const Vec3 translation(bone.matrix[3]);
+    check(translation == bone.position, "the matrix carries the position");
+    check(bone.matrix[0][0] == 1.0f && bone.matrix[1][1] == 1.0f,
+          "an identity rotation leaves the matrix unrotated");
+
+    // a quarter turn about z has to move x onto y
+    const float half = std::sqrt(0.5f);
+    const std::array<float, 8> turned{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, half, half};
+    const cs2::BoneTransform rotated = cs2::BoneTransform::from_memory(turned);
+    const Vec4 moved = rotated.matrix * Vec4(1.0f, 0.0f, 0.0f, 1.0f);
+    check(dl::test::close(moved.x, 0.0f, 1e-4f) && dl::test::close(moved.y, 1.0f, 1e-4f),
+          "a quarter turn about z sends x to y");
+
+    // a freed node reads back as zeroes or nans, and normalising either poisons the matrix
+    const std::array<float, 8> zeroed{5.0f, 6.0f, 7.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    const cs2::BoneTransform degenerate = cs2::BoneTransform::from_memory(zeroed);
+    bool finite = true;
+    for (int column = 0; column < 4; ++column) {
+        for (int row = 0; row < 4; ++row) {
+            finite = finite && std::isfinite(degenerate.matrix[column][row]);
+        }
+    }
+    check(finite, "a zero quaternion still yields a finite matrix");
+    check(degenerate.position == Vec3(5.0f, 6.0f, 7.0f), "and keeps the position it read");
+
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    const std::array<float, 8> broken{0.0f, 0.0f, 0.0f, 0.0f, nan, nan, nan, nan};
+    const cs2::BoneTransform poisoned = cs2::BoneTransform::from_memory(broken);
+    bool clean = true;
+    for (int column = 0; column < 4; ++column) {
+        for (int row = 0; row < 4; ++row) {
+            clean = clean && std::isfinite(poisoned.matrix[column][row]);
+        }
+    }
+    check(clean, "a nan quaternion does not leak nans into the matrix");
+
+    // --- bone indices map into the skeleton, gaps and all ---
+    std::vector<cs2::BoneTransform> skeleton(cs2::mesh_skeleton_bone_count);
+    for (std::size_t i = 0; i < skeleton.size(); ++i) {
+        skeleton[i].position = Vec3(static_cast<float>(i), 0.0f, 0.0f);
+    }
+    const auto positions = cs2::Player::bone_positions(skeleton);
+    check(positions.size() == config::bone_count, "every bone gets a position");
+    check(positions.at(config::Bones::Head).x == 7.0f, "head reads skeleton slot 7");
+    check(positions.at(config::Bones::Hip).x == 1.0f, "hip reads skeleton slot 1");
+    check(positions.at(config::Bones::RightFoot).x == 22.0f, "right foot reads skeleton slot 22");
+
+    check(cs2::mesh_skeleton_bone_count == 96 && cs2::bone_stride == 32,
+          "skeleton shape matches the game's");
 
     return dl::test::report();
 }

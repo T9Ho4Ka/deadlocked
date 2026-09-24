@@ -37,6 +37,8 @@ public:
     [[nodiscard]] const std::vector<Player>& dead_players() const { return dead_players_; }
     [[nodiscard]] const std::vector<Entity>& entities() const { return entities_; }
     [[nodiscard]] const std::optional<PlantedC4>& planted_c4() const { return planted_c4_; }
+    /// Bit the local player occupies in every other player's spotted mask.
+    [[nodiscard]] std::uint64_t local_pawn_index() const { return local_pawn_index_; }
 
     /// Entity at an index in the game's entity list, zero when there is none.
     [[nodiscard]] std::uintptr_t client_entity(std::size_t index) const;
@@ -62,6 +64,7 @@ private:
     std::vector<Player> dead_players_;
     std::vector<Entity> entities_;
     std::optional<PlantedC4> planted_c4_;
+    std::uint64_t local_pawn_index_ = 64;
 };
 
 }  // namespace dl::cs2

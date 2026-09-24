@@ -63,7 +63,7 @@ Fedora dependencies: `sudo dnf install gcc-c++ cmake ninja-build glfw-devel mesa
 | `src/os/process.cpp` | reading another process's memory, modules, elf lookups, scanning |
 | `src/cs2/schema.cpp` | the game's schema system: class field offsets by name |
 | `src/cs2/offsets.cpp` | the 115 addresses and field offsets, resolved out of the game |
-| `src/cs2/entity.cpp` | entities, players and the planted bomb |
+| `src/cs2/entity.cpp` | entities, players, skeletons and the planted bomb |
 | `src/cs2/game.cpp` | attaching to the game and walking its entity list |
 
 ## Config
@@ -90,6 +90,7 @@ duplicated here. A build that cannot find them falls back to the ImGui built in 
 6. **cs2: the schema reader** — done, but only verifiable against a running game
 7. **cs2: the offset table** — done, 115 offsets, cross checked against the rust table
 8. **cs2: entities, players, the entity list walk** — done
-9. cs2: the rest of the player, bones, visibility and the features on top
-10. overlay: the OpenGL esp renderer
-11. radar client and the update check
+9. **cs2: the rest of the player, skeletons, inventory, round stats** — done
+10. cs2: the physics world and real line of sight, replacing the spotted flag
+11. overlay: the OpenGL esp renderer
+12. radar client and the update check

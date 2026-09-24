@@ -89,6 +89,7 @@ void Game::cache_entities() {
     dead_players_.clear();
     entities_.clear();
     planted_c4_.reset();
+    local_pawn_index_ = 64;
     local_player_ = Player::local(*this);
 
     if (!local_player_.has_value()) {
@@ -145,7 +146,10 @@ void Game::scan_bucket(std::size_t bucket_index, std::uintptr_t bucket_pointer,
             }
             if (!player->is_valid(*this)) {
                 dead_players_.push_back(*player);
-            } else if (!(*player == local)) {
+            } else if (*player == local) {
+                // the local player's own slot is the bit everyone else's spotted mask uses
+                local_pawn_index_ = (static_cast<std::uint64_t>(handle) & handle_index_mask) - 1;
+            } else {
                 players_.push_back(*player);
             }
             continue;
