@@ -67,3 +67,9 @@ target_link_options(process_test PRIVATE -rdynamic)
 
 foreach(unused_guard 0)
 endforeach()
+
+# diagnostic harness: attaches to a running cs2 and reports what the port can see.
+# read only, and the only way to exercise the cs2 layer at all.
+add_executable(deadlocked-probe tools/probe.cpp)
+target_link_libraries(deadlocked-probe PRIVATE deadlocked-core)
+target_compile_options(deadlocked-probe PRIVATE -Wall -Wextra)

@@ -39,6 +39,14 @@ python3 tools/check_offsets.py   # the 115 offsets
 python3 tools/check_tables.py    # weapons, bones, class names
 ```
 
+With CS2 actually running, `deadlocked-probe` exercises the rest: it attaches, reads the
+schema, resolves every offset, walks the entity list and projects what it found. It reads
+and never writes, and it is the only way to tell a stale offset from a correct one.
+
+```sh
+./build/deadlocked-probe
+```
+
 Define `DL_READ_ONLY` to compile out every write to the game's memory, the same as the
 rust client's `read-only` feature.
 
