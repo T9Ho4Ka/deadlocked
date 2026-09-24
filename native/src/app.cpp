@@ -133,6 +133,16 @@ bool App::init() {
     ImGui::CreateContext();
     ImGui::GetIO().IniFilename = nullptr;
 
+    // the mouse is optional: without it the esp still works, only the aim does not
+    std::string reason;
+    if (!os::uinput_available(reason)) {
+        std::fprintf(stderr, "no mouse control: %s\n", reason.c_str());
+    } else if (const std::string error = mouse_.open(); !error.empty()) {
+        std::fprintf(stderr, "no mouse control: %s\n", error.c_str());
+    } else {
+        std::fprintf(stderr, "virtual mouse ready\n");
+    }
+
     state_.config = config::load();
     std::fprintf(stderr, "config: %s\n", config::config_path().c_str());
     load_fonts(state_.fonts, ui::body_size * state_.config.theme.text_scale);
@@ -222,6 +232,7 @@ void App::update_game() {
     }
 
     game_->tick();
+    features_.run(*game_, state_.config, mouse_);
     game_->build_snapshot(snapshot_);
 }
 
@@ -235,7 +246,7 @@ void App::draw_overlay() {
 
     ImGui::SetCurrentContext(overlay_context_);
     overlay_.begin_frame();
-    if (snapshot_.in_game) {
+    if (snapshot_.in_game && features_.esp_enabled(state_.config)) {
         overlay::draw_esp(snapshot_, state_.config);
     }
     overlay_.end_frame();

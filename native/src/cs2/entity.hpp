@@ -118,6 +118,8 @@ public:
     [[nodiscard]] std::optional<Player> crosshair_entity(const Game& game) const;
     [[nodiscard]] std::optional<std::int32_t> round_kills(const Game& game) const;
     [[nodiscard]] std::optional<float> round_damage(const Game& game) const;
+    /// How far the last shots have kicked the aim off, in degrees.
+    [[nodiscard]] Vec2 aim_punch(const Game& game) const;
 
     /// alive, visible to the game, and not protected by spawn immunity
     [[nodiscard]] bool is_valid(const Game& game) const;

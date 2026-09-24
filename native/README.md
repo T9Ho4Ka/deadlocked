@@ -76,6 +76,8 @@ Fedora dependencies: `sudo dnf install gcc-c++ cmake ninja-build glfw-devel mesa
 | `src/cs2/game.cpp` | attaching, the entity list walk, convars and the snapshot |
 | `src/cs2/snapshot.cpp` | one frame copied out of the game for the overlay to draw |
 | `src/cs2/input.cpp` | the game's own key state, so hotkeys work without focus |
+| `src/cs2/features.cpp` | everything that writes: no flash, fov, aim, trigger, recoil |
+| `src/os/mouse.cpp` | the virtual mouse, through the kernel's uinput device |
 | `src/cs2/physics.cpp` | the map's collision geometry, read out of the physics world |
 | `src/geometry/bvh.cpp` | the tree over it, and the line of sight queries |
 | `src/overlay/window.cpp` | the transparent click through window that follows the game |
@@ -90,6 +92,17 @@ works, but there is no overlay.
 
 The overlay only sizes itself once the game reports a window, which the game only does while
 it is the focused window.
+
+## Writing to the game
+
+Everything up to this point only read. `cs2/features` is the one part that writes: to the
+game's memory for the flash and field of view settings, and to a virtual mouse for anything
+that moves the aim. Without `/dev/uinput` writable the esp still works and the aim does not,
+which the client says at startup rather than failing silently.
+
+The virtual mouse identifies itself as what it is. The rust client instead borrows the usb
+vendor and product id of a texas instruments calculator, which does nothing for how the
+device works and only makes it harder to recognise; that part was left out.
 
 ## Config
 
@@ -124,5 +137,5 @@ duplicated here. A build that cannot find them falls back to the ImGui built in 
 14. **overlay: the transparent window and the player esp** — done
 15. **overlay: dropped entities, the bomb timer, the sniper crosshair** — done
 16. overlay: the 3d model renderer, grenade trails, the keybind list
-17. features: aimbot, triggerbot, rcs, and the rest, which need uinput
+17. **features: aimbot, triggerbot, rcs, no flash, fov changer** — done
 18. radar client and the update check

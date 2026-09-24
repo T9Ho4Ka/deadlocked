@@ -22,12 +22,14 @@ add_executable(deadlocked-native
     src/config/config.cpp
     src/config/keycode.cpp
     src/os/process.cpp
+    src/os/mouse.cpp
     src/cs2/schema.cpp
     src/cs2/offsets.cpp
     src/cs2/entity.cpp
     src/cs2/game.cpp
     src/cs2/snapshot.cpp
     src/cs2/input.cpp
+    src/cs2/features.cpp
     src/geometry/bvh.cpp
     src/cs2/physics.cpp
     src/overlay/window.cpp
@@ -50,12 +52,14 @@ add_library(deadlocked-core STATIC
     src/config/config.cpp
     src/config/keycode.cpp
     src/os/process.cpp
+    src/os/mouse.cpp
     src/cs2/schema.cpp
     src/cs2/offsets.cpp
     src/cs2/entity.cpp
     src/cs2/game.cpp
     src/cs2/snapshot.cpp
     src/cs2/input.cpp
+    src/cs2/features.cpp
     src/geometry/bvh.cpp
     src/cs2/physics.cpp
     src/overlay/window.cpp

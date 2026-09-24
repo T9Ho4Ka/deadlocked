@@ -8,7 +8,9 @@
 #include <optional>
 
 #include "config/config.hpp"
+#include "cs2/features.hpp"
 #include "cs2/game.hpp"
+#include "os/mouse.hpp"
 #include "cs2/snapshot.hpp"
 #include "overlay/window.hpp"
 
@@ -97,6 +99,8 @@ private:
 
     overlay::Window overlay_;
     std::optional<cs2::Game> game_;
+    cs2::Features features_;
+    os::Mouse mouse_;
     cs2::Snapshot snapshot_;
     std::chrono::steady_clock::time_point last_attach_{};
 

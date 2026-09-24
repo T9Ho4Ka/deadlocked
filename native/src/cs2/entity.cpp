@@ -428,6 +428,26 @@ std::optional<float> Player::round_damage(const Game& game) const {
     return game.process().read<float>(services + game.offsets().action_tracking.round_damage);
 }
 
+Vec2 Player::aim_punch(const Game& game) const {
+    const auto services =
+        game.process().read<std::uintptr_t>(pawn_.address() + game.offsets().pawn.aim_punch_services);
+    if (services == 0) {
+        return Vec2(0.0f);
+    }
+
+    // the cache is a vector of angle triples; the last entry is the current kick
+    const std::uintptr_t cache = services + game.offsets().aim_punch_services.aim_punch_cache;
+    const auto length = game.process().read<std::size_t>(cache);
+    if (length < 1 || length > 1024) {
+        return Vec2(0.0f);
+    }
+    const auto data = game.process().read<std::uintptr_t>(cache + 0x08);
+    if (data == 0) {
+        return Vec2(0.0f);
+    }
+    return game.process().read<Vec2>(data + (length - 1) * 12);
+}
+
 bool PlantedC4::is_ticking(const Game& game) const {
     return game.process().read<std::uint8_t>(entity_.address() +
                                              game.offsets().planted_c4.is_ticking) != 0;
