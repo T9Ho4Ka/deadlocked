@@ -76,6 +76,8 @@ Fedora dependencies: `sudo dnf install gcc-c++ cmake ninja-build glfw-devel mesa
 | `src/cs2/game.cpp` | attaching, the entity list walk, convars and the snapshot |
 | `src/cs2/snapshot.cpp` | one frame copied out of the game for the overlay to draw |
 | `src/cs2/input.cpp` | the game's own key state, so hotkeys work without focus |
+| `src/cs2/physics.cpp` | the map's collision geometry, read out of the physics world |
+| `src/geometry/bvh.cpp` | the tree over it, and the line of sight queries |
 
 ## Config
 
@@ -106,7 +108,7 @@ duplicated here. A build that cannot find them falls back to the ImGui built in 
 11. **cs2: the snapshot, the view matrix and the convars** — done
 12. **cs2: the input layer and the tick loop** — done, though the key state offset is
     only verifiable with cs2 focused and a key held
-13. cs2: the physics world and real line of sight, replacing the spotted flag
+13. **cs2: the physics world and real line of sight** — done
 14. overlay: the OpenGL esp renderer, the transparent window, uinput
 15. features: aimbot, triggerbot, rcs, and the rest
 16. radar client and the update check

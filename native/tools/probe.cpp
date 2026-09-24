@@ -3,6 +3,7 @@
 /// Everything below cs2/schema can only be checked against a live game, so this is the
 /// harness that does it. It reads and never writes.
 
+#include <algorithm>
 #include <bit>
 #include <chrono>
 #include <cmath>
@@ -236,6 +237,39 @@ int main() {
     }
     std::printf("local ammo    %d/%d, money %d\n", snapshot.local_player.clip_ammo,
                 snapshot.local_player.reserve_ammo, snapshot.local_player.money);
+
+    heading("collision geometry");
+    const auto started = std::chrono::steady_clock::now();
+    game->check_map();
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - started);
+    std::printf("triangles     %zu\n", game->geometry().triangle_count());
+    std::printf("tree nodes    %zu\n", game->geometry().node_count());
+    std::printf("read + build  %ld ms\n", static_cast<long>(elapsed.count()));
+
+    if (!game->geometry().empty()) {
+        // the local player stands on the map, so the floor must be between their eyes and
+        // a point below their feet, while their own head must stay in view
+        const Vec3 eye = local->eye_position(*game);
+        const Vec3 below = local->pawn().position(*game) - Vec3(0.0f, 0.0f, 64.0f);
+        std::printf("sees through the floor: %s (expected no)\n",
+                    yes_no(game->has_line_of_sight(eye, below)));
+        std::printf("sees own head:          %s (expected yes)\n",
+                    yes_no(game->has_line_of_sight(eye, local->bone_position(*game, 7))));
+
+        std::size_t visible = 0;
+        for (const cs2::Player& player : game->players()) {
+            if (game->has_line_of_sight(eye, player.bone_position(*game, 7))) {
+                ++visible;
+            }
+        }
+        std::printf("enemies whose head is in line of sight: %zu of %zu\n", visible,
+                    game->players().size());
+        std::printf("enemies the game itself calls spotted:  %zu\n",
+                    static_cast<std::size_t>(std::count_if(
+                        game->players().begin(), game->players().end(),
+                        [&](const cs2::Player& p) { return p.spotted_by_local(*game); })));
+    }
 
     heading("input");
     // sampled for a moment, because a key that is never pressed proves nothing either way

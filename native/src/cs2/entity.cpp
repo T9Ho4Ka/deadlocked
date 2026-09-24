@@ -319,11 +319,19 @@ std::vector<BoneTransform> Player::skeleton(const Game& game, const Player& loca
         result.push_back(BoneTransform::from_memory(values));
     }
 
-    // without the physics world to trace against, the game's own spotted flag is all there is
-    const float visible = spotted_by_local(game) ? 1.0f : 0.0f;
-    (void)local;
+    if (game.geometry().empty()) {
+        // no collision geometry yet, so the game's own spotted flag is all there is, and it
+        // is the same answer for the whole body
+        const float spotted = spotted_by_local(game) ? 1.0f : 0.0f;
+        for (BoneTransform& bone : result) {
+            bone.visibility = spotted;
+        }
+        return result;
+    }
+
+    const Vec3 eye = local.eye_position(game);
     for (BoneTransform& bone : result) {
-        bone.visibility = visible;
+        bone.visibility = game.has_line_of_sight(eye, bone.position) ? 1.0f : 0.0f;
     }
     return result;
 }

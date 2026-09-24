@@ -7,6 +7,7 @@
 
 #include "cs2/entity.hpp"
 #include "cs2/input.hpp"
+#include "geometry/bvh.hpp"
 #include "cs2/offsets.hpp"
 #include "cs2/snapshot.hpp"
 #include "os/process.hpp"
@@ -41,6 +42,16 @@ public:
     void cache_entities();
 
     [[nodiscard]] const Input& input() const { return input_; }
+
+    /// Rebuilds the collision geometry when the map has changed. Reading a map is tens of
+    /// thousands of triangles, so it happens once per map, never per frame.
+    void check_map();
+    [[nodiscard]] const geometry::Bvh& geometry() const { return bvh_; }
+
+    /// Whether `from` can see `to` through the map. Falls back to the game's own spotted
+    /// flag while no geometry is loaded, which is a weaker answer: the game only reports
+    /// what it has decided to render, not what is geometrically in view.
+    [[nodiscard]] bool has_line_of_sight(const Vec3& from, const Vec3& to) const;
 
     [[nodiscard]] const std::optional<Player>& local_player() const { return local_player_; }
     [[nodiscard]] const std::vector<Player>& players() const { return players_; }
@@ -89,6 +100,8 @@ private:
     Offsets offsets_;
     Input input_;
     std::chrono::steady_clock::time_point last_cache_{};
+    geometry::Bvh bvh_;
+    std::string bvh_map_;
 
     std::optional<Player> local_player_;
     std::vector<Player> players_;

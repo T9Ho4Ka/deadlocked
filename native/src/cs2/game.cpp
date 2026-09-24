@@ -6,6 +6,7 @@
 #include <array>
 
 #include "constants.hpp"
+#include "cs2/physics.hpp"
 
 namespace dl::cs2 {
 namespace {
@@ -141,6 +142,31 @@ Mat4 Game::view_matrix() const {
     return process_.read<Mat4>(offsets_.direct.view_matrix);
 }
 
+void Game::check_map() {
+    const std::string map = current_map();
+    if (map.empty() || map == bvh_map_) {
+        return;
+    }
+
+    std::vector<geometry::Triangle> triangles = read_collision_triangles(*this);
+    if (triangles.empty()) {
+        // the physics world is not up yet, so try again on the next pass
+        return;
+    }
+
+    const std::size_t count = triangles.size();
+    bvh_.build(std::move(triangles));
+    bvh_map_ = map;
+    std::fprintf(stderr, "loaded %zu collision triangles for %s\n", count, map.c_str());
+}
+
+bool Game::has_line_of_sight(const Vec3& from, const Vec3& to) const {
+    if (bvh_.empty()) {
+        return false;
+    }
+    return bvh_.has_line_of_sight(from, to);
+}
+
 void Game::tick() {
     // reading the input is a single small read, so it happens every pass
     input_.update(process_, offsets_);
@@ -150,6 +176,7 @@ void Game::tick() {
     const auto now = std::chrono::steady_clock::now();
     if (now - last_cache_ >= cache_interval) {
         cache_entities();
+        check_map();
         last_cache_ = now;
     }
 }
@@ -202,9 +229,22 @@ PlayerData Game::player_data(const Player& player, const Player& local) {
     if (head != data.bones.end()) {
         data.head = head->second;
     }
-    // without the physics world to trace against, the game's own spotted flag is the
-    // closest thing to line of sight there is
-    data.visible = player.spotted_by_local(*this);
+    if (bvh_.empty()) {
+        data.visible = player.spotted_by_local(*this);
+    } else {
+        // the bones the esp cares about: if any of them can be seen, so can the player
+        const Vec3 eye = local.eye_position(*this);
+        data.visible = false;
+        for (const config::Bones bone : {config::Bones::Head, config::Bones::LeftFoot,
+                                         config::Bones::RightFoot, config::Bones::LeftHand,
+                                         config::Bones::RightHand}) {
+            const auto found = data.bones.find(bone);
+            if (found != data.bones.end() && bvh_.has_line_of_sight(eye, found->second)) {
+                data.visible = true;
+                break;
+            }
+        }
+    }
 
     const auto [mins, maxs] = pawn.collision_bounds(*this);
     data.collision_mins = mins;

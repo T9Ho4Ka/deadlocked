@@ -28,6 +28,8 @@ add_executable(deadlocked-native
     src/cs2/game.cpp
     src/cs2/snapshot.cpp
     src/cs2/input.cpp
+    src/geometry/bvh.cpp
+    src/cs2/physics.cpp
     src/game_math.cpp
 )
 
@@ -52,13 +54,15 @@ add_library(deadlocked-core STATIC
     src/cs2/game.cpp
     src/cs2/snapshot.cpp
     src/cs2/input.cpp
+    src/geometry/bvh.cpp
+    src/cs2/physics.cpp
     src/game_math.cpp
 )
 target_include_directories(deadlocked-core PUBLIC src)
 target_link_libraries(deadlocked-core PUBLIC imgui tomlplusplus::tomlplusplus glm::glm)
 target_compile_options(deadlocked-core PRIVATE -Wall -Wextra -Wpedantic)
 
-foreach(test_name config process cs2 math)
+foreach(test_name config process cs2 math bvh)
     add_executable(${test_name}_test tests/${test_name}_test.cpp)
     target_include_directories(${test_name}_test PRIVATE tests)
     target_link_libraries(${test_name}_test PRIVATE deadlocked-core)
