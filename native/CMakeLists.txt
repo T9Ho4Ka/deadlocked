@@ -23,6 +23,7 @@ add_executable(deadlocked-native
     src/config/keycode.cpp
     src/os/process.cpp
     src/cs2/schema.cpp
+    src/cs2/offsets.cpp
 )
 
 target_include_directories(deadlocked-native PRIVATE src)
@@ -41,6 +42,7 @@ add_library(deadlocked-core STATIC
     src/config/keycode.cpp
     src/os/process.cpp
     src/cs2/schema.cpp
+    src/cs2/offsets.cpp
 )
 target_include_directories(deadlocked-core PUBLIC src)
 target_link_libraries(deadlocked-core PUBLIC imgui tomlplusplus::tomlplusplus)

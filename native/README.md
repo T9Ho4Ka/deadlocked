@@ -27,8 +27,15 @@ ctest --test-dir build --output-on-failure
 
 `process_test` reads this very process's memory and resolves symbols out of libc, so it
 needs no game running. `config_test` writes into a scratch directory, never the real
-config. Nothing above covers `cs2/schema.cpp`: it can only be exercised against a live
-CS2, and a wrong layout constant there shows up as a class that is simply not found.
+config. Nothing above covers `cs2/schema.cpp` or `cs2/offsets.cpp`: they can only be exercised
+against a live CS2, and a wrong layout constant shows up as a class that is simply not found.
+
+What can be checked without the game is that the ported offset table still matches the
+rust one, offset for offset:
+
+```sh
+python3 tools/check_offsets.py
+```
 
 Define `DL_READ_ONLY` to compile out every write to the game's memory, the same as the
 rust client's `read-only` feature.
@@ -53,6 +60,7 @@ Fedora dependencies: `sudo dnf install gcc-c++ cmake ninja-build glfw-devel mesa
 | `src/config/config.cpp` | TOML load and save |
 | `src/os/process.cpp` | reading another process's memory, modules, elf lookups, scanning |
 | `src/cs2/schema.cpp` | the game's schema system: class field offsets by name |
+| `src/cs2/offsets.cpp` | the 115 addresses and field offsets, resolved out of the game |
 
 ## Config
 
@@ -76,6 +84,7 @@ duplicated here. A build that cannot find them falls back to the ImGui built in 
 4. **config: aim, weapons, bones** — done, the config tree is complete
 5. **os: process access, module lookup, pattern scanning** — done
 6. **cs2: the schema reader** — done, but only verifiable against a running game
-7. cs2: the offset table on top of it, then reading entities
-8. overlay: the OpenGL esp renderer
-9. radar client and the update check
+7. **cs2: the offset table** — done, 115 offsets, cross checked against the rust table
+8. cs2: reading entities out of the game
+9. overlay: the OpenGL esp renderer
+10. radar client and the update check
