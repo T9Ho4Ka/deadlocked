@@ -11,6 +11,7 @@
 
 #include "config/weapon.hpp"
 #include "cs2/types.hpp"
+#include "cs2/sound.hpp"
 #include "math.hpp"
 
 namespace dl::cs2 {
@@ -120,6 +121,11 @@ public:
     [[nodiscard]] std::optional<float> round_damage(const Game& game) const;
     /// How far the last shots have kicked the aim off, in degrees.
     [[nodiscard]] Vec2 aim_punch(const Game& game) const;
+
+    /// What noise the player is making, worked out from how fast they are moving and what
+    /// they are doing. Empty when they are quiet: standing still, or walking slowly enough
+    /// that the game plays no footstep.
+    [[nodiscard]] std::optional<SoundType> making_sound(const Game& game) const;
 
     /// alive, visible to the game, and not protected by spawn immunity
     [[nodiscard]] bool is_valid(const Game& game) const;

@@ -10,6 +10,7 @@ struct Snapshot;
 namespace dl::overlay {
 
 class Trails;
+class Sounds;
 
 /// The feature state the hud reports, which lives outside the snapshot.
 struct FeatureState {
@@ -20,6 +21,6 @@ struct FeatureState {
 /// Draws one frame of esp into ImGui's background draw list, from a snapshot of the game.
 /// Reads nothing from the game itself: by now the entities it came from may be gone.
 void draw_esp(const cs2::Snapshot& snapshot, const config::Config& config,
-              const FeatureState& features, const Trails& trails);
+              const FeatureState& features, const Trails& trails, const Sounds& sounds);
 
 }  // namespace dl::overlay

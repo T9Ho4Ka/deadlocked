@@ -249,6 +249,7 @@ void App::update_game() {
     features_.run(*game_, state_.config, mouse_);
     game_->build_snapshot(snapshot_);
     trails_.update(snapshot_);
+    sounds_.update(snapshot_);
 
     // the radar thread sends whatever the newest frame is, so encoding one it never gets
     // to is only wasted when the link is slower than the game
@@ -272,7 +273,7 @@ void App::draw_overlay() {
     if (snapshot_.in_game && features_.esp_enabled(state_.config)) {
         const overlay::FeatureState features{features_.aimbot_active(),
                                              features_.triggerbot_active()};
-        overlay::draw_esp(snapshot_, state_.config, features, trails_);
+        overlay::draw_esp(snapshot_, state_.config, features, trails_, sounds_);
 
         // the models go through gl directly, so they are drawn before imgui's own pass
         if (state_.config.player.draw_model != config::DrawMode::None && models_.ready()) {

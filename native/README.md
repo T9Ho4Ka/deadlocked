@@ -3,8 +3,8 @@
 C++ port of deadlocked, grown one module at a time. The Rust client in `cheat/` stays the
 working one and is not touched by anything here; this tree catches up to it gradually.
 
-The port is feature complete against the rust client, bar the update check and the sound
-esp. It attaches to CS2, reads its entities, draws the esp and the player models over it,
+The port is feature complete against the rust client, bar `server/`, which is its own
+crate. It attaches to CS2, reads its entities, draws the esp and the player models over it,
 moves the aim, and streams frames to the radar relay.
 
 ## Build
@@ -82,6 +82,7 @@ Fedora dependencies: `sudo dnf install gcc-c++ cmake ninja-build glfw-devel mesa
 | `src/overlay/window.cpp` | the transparent click through window that follows the game |
 | `src/overlay/esp.cpp` | boxes, skeletons, bars, dropped entities, the bomb and the hud |
 | `src/overlay/trails.cpp` | where grenades have flown, kept between frames |
+| `src/overlay/sounds.cpp` | when each player was last heard, and how they fade out |
 | `src/overlay/model.cpp` | the players' own models, loaded from gltf and skinned |
 | `src/overlay/gl.cpp` | the opengl entry points the model shaders need |
 | `src/net/postcard.hpp` | the wire format the radar server speaks |
@@ -149,7 +150,7 @@ duplicated here. A build that cannot find them falls back to the ImGui built in 
     at once, since the full set is ninety megabytes
 18. **radar client** — done, the frame matches rust's own serializer byte for byte
 
-Not ported: the sound esp, and `server/`, which is its own crate.
+Not ported: `server/`, which is its own crate.
 
 ## The update check
 

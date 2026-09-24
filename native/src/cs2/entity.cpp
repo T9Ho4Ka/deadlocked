@@ -8,6 +8,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "cs2/game.hpp"
+#include "config/weapon_class.hpp"
 #include "cs2/weapon_index.hpp"
 
 namespace dl::cs2 {
@@ -446,6 +447,35 @@ Vec2 Player::aim_punch(const Game& game) const {
         return Vec2(0.0f);
     }
     return game.process().read<Vec2>(data + (length - 1) * 12);
+}
+
+std::optional<SoundType> Player::making_sound(const Game& game) const {
+    if (shots_fired(game) > 0) {
+        return SoundType::Gunshot;
+    }
+
+    const Vec3 velocity = pawn_.velocity(game);
+    const float speed = glm::length(Vec2(velocity.x, velocity.y));
+
+    // a player who is still, or creeping, makes no sound the game would play
+    constexpr float standing_speed = 10.0f;
+    constexpr float walking_speed = 100.0f;
+    constexpr float audible_speed = 150.0f;
+    if (speed > walking_speed || speed < standing_speed) {
+        return std::nullopt;
+    }
+
+    if (is_scoped(game) &&
+        config::weapon_class(weapon(game)) == config::WeaponClass::Sniper) {
+        return SoundType::Weapon;
+    }
+
+    const bool jumping = velocity.z > 100.0f && is_in_air(game);
+    const bool landing = velocity.z < -200.0f;
+    if (speed > audible_speed || jumping || landing) {
+        return SoundType::Footstep;
+    }
+    return std::nullopt;
 }
 
 bool PlantedC4::is_ticking(const Game& game) const {

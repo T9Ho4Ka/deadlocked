@@ -15,6 +15,7 @@
 #include "config/weapon_class.hpp"
 #include "cs2/snapshot.hpp"
 #include "game_math.hpp"
+#include "overlay/sounds.hpp"
 #include "overlay/trails.hpp"
 
 namespace dl::overlay {
@@ -47,19 +48,28 @@ ImU32 health_color(std::int32_t health, std::int32_t max_health, std::uint8_t al
     return IM_COL32(red, green, 0, alpha);
 }
 
-/// the colour the game assigns a player in a competitive lobby
+/// The colour the game assigns a player in a competitive lobby. These are the rust
+/// client's own accent colours, not the game's, so the two look the same.
 ImU32 player_color(std::int32_t index) {
     constexpr std::array<ImU32, 5> colors{
-        IM_COL32(0, 157, 255, 255),    // blue
-        IM_COL32(0, 255, 0, 255),      // green
-        IM_COL32(255, 255, 0, 255),    // yellow
-        IM_COL32(255, 128, 0, 255),    // orange
-        IM_COL32(255, 0, 128, 255),    // purple
+        IM_COL32(100, 150, 240, 255),  // blue
+        IM_COL32(160, 240, 130, 255),  // green
+        IM_COL32(240, 200, 120, 255),  // yellow
+        IM_COL32(240, 140, 90, 255),   // orange
+        IM_COL32(180, 120, 240, 255),  // purple
     };
     if (index < 0 || static_cast<std::size_t>(index) >= colors.size()) {
-        return IM_COL32(255, 255, 255, 255);
+        // subtext, for a player the lobby gave no colour
+        return IM_COL32(140, 140, 140, 255);
     }
     return colors[static_cast<std::size_t>(index)];
+}
+
+/// Reapplies an alpha to a colour, for fading a player out as the sound that revealed them
+/// ages away.
+ImU32 with_alpha(ImU32 color, float alpha) {
+    const auto scaled = static_cast<std::uint32_t>(std::clamp(alpha, 0.0f, 1.0f) * 255.0f);
+    return (color & 0x00FF'FFFFu) | (scaled << IM_COL32_A_SHIFT);
 }
 
 ImU32 mode_color(DrawMode mode, const PlayerData& player, const ui::Color& fixed) {
@@ -185,12 +195,13 @@ void draw_bars(ImDrawList* list, const std::array<Vec2, 4>& corners, const Playe
 }
 
 void draw_skeleton(ImDrawList* list, const PlayerData& player, const Snapshot& snapshot,
-                   const config::Config& config, float scale) {
+                   const config::Config& config, float scale, float alpha) {
     const config::PlayerConfig& settings = config.player;
     if (settings.draw_skeleton == DrawMode::None) {
         return;
     }
-    const ImU32 color = mode_color(settings.draw_skeleton, player, settings.skeleton_color);
+    const ImU32 color =
+        with_alpha(mode_color(settings.draw_skeleton, player, settings.skeleton_color), alpha);
     const float thickness = config.hud.line_width * scale;
 
     for (const auto& [from, to] : config::bone_connections) {
@@ -231,13 +242,11 @@ void draw_skeleton(ImDrawList* list, const PlayerData& player, const Snapshot& s
     // the neck to spine distance on screen scales with how far away the player is, so the
     // circle shrinks with them without needing the distance itself
     const float radius = std::abs(spine_screen->y - neck_screen->y) / 2.4f;
-    list->AddCircle(to_im(*head_screen), radius, mode_color(settings.draw_skeleton, player,
-                                                            settings.skeleton_color),
-                    0, config.hud.line_width * scale);
+    list->AddCircle(to_im(*head_screen), radius, color, 0, config.hud.line_width * scale);
 }
 
 void draw_snapline(ImDrawList* list, const PlayerData& player, const Snapshot& snapshot,
-                   const config::PlayerConfig& settings) {
+                   const config::PlayerConfig& settings, float alpha) {
     if (settings.snaplines == SnaplineMode::None) {
         return;
     }
@@ -257,7 +266,7 @@ void draw_snapline(ImDrawList* list, const PlayerData& player, const Snapshot& s
     } else if (settings.snaplines == SnaplineMode::PlayerColor) {
         color = player_color(player.color);
     }
-    list->AddLine(to_im(from), to_im(*target), color, 1.0f);
+    list->AddLine(to_im(from), to_im(*target), with_alpha(color, alpha), 1.0f);
 }
 
 bool passes_visibility(const PlayerData& player, VisibilityMode mode) {
@@ -270,7 +279,7 @@ bool passes_visibility(const PlayerData& player, VisibilityMode mode) {
 }
 
 void draw_player(ImDrawList* list, const PlayerData& player, const Snapshot& snapshot,
-                 const config::Config& config) {
+                 const config::Config& config, float alpha) {
     const config::PlayerConfig& settings = config.player;
     if (!passes_visibility(player, settings.visibility)) {
         return;
@@ -280,8 +289,8 @@ void draw_player(ImDrawList* list, const PlayerData& player, const Snapshot& sna
     const float distance = std::max(glm::distance(snapshot.local_player.position, player.position), 1.0f);
     const float scale = std::clamp(500.0f / distance, 0.25f, 1.0f);
 
-    draw_snapline(list, player, snapshot, settings);
-    draw_skeleton(list, player, snapshot, config, scale);
+    draw_snapline(list, player, snapshot, settings, alpha);
+    draw_skeleton(list, player, snapshot, config, scale, alpha);
 
     const auto corners = projected_bounds(player, snapshot);
     if (!corners.has_value()) {
@@ -291,7 +300,7 @@ void draw_player(ImDrawList* list, const PlayerData& player, const Snapshot& sna
     if (settings.draw_box != DrawMode::None) {
         const ui::Color& fixed =
             player.visible ? settings.box_visible_color : settings.box_invisible_color;
-        const ImU32 color = mode_color(settings.draw_box, player, fixed);
+        const ImU32 color = with_alpha(mode_color(settings.draw_box, player, fixed), alpha);
         const float thickness = config.hud.line_width * scale;
         if (settings.box_mode == BoxMode::Gap) {
             draw_gap_box(list, *corners, color, thickness);
@@ -304,7 +313,8 @@ void draw_player(ImDrawList* list, const PlayerData& player, const Snapshot& sna
 
     if (settings.player_name && !player.name.empty()) {
         const Vec2 above((*corners)[0].x, (*corners)[0].y - 14.0f);
-        list->AddText(to_im(above), IM_COL32(255, 255, 255, 255), player.name.c_str());
+        list->AddText(to_im(above), with_alpha(IM_COL32(255, 255, 255, 255), alpha),
+                      player.name.c_str());
     }
 }
 
@@ -543,7 +553,7 @@ void draw_spectators(ImDrawList* list, const Snapshot& snapshot, const config::C
 }  // namespace
 
 void draw_esp(const Snapshot& snapshot, const config::Config& config,
-              const FeatureState& features, const Trails& trails) {
+              const FeatureState& features, const Trails& trails, const Sounds& sounds) {
     if (!snapshot.in_game) {
         return;
     }
@@ -551,13 +561,27 @@ void draw_esp(const Snapshot& snapshot, const config::Config& config,
     ImDrawList* list = ImGui::GetBackgroundDrawList();
 
     if (config.player.enabled) {
+        // with sound esp on, a player is only drawn while they can be seen or have just
+        // been heard, fading out as that ages
+        const auto strength = [&](const PlayerData& player) {
+            return config.player.sound.enabled
+                       ? sounds.alpha(snapshot, player, config.player.sound)
+                       : 1.0f;
+        };
+
         for (const PlayerData& player : snapshot.players) {
-            draw_player(list, player, snapshot, config);
+            const float alpha = strength(player);
+            if (alpha > 0.0f) {
+                draw_player(list, player, snapshot, config, alpha);
+            }
         }
-    }
-    if (config.player.enabled && config.player.show_friendlies) {
-        for (const PlayerData& player : snapshot.friendlies) {
-            draw_player(list, player, snapshot, config);
+        if (config.player.show_friendlies) {
+            for (const PlayerData& player : snapshot.friendlies) {
+                const float alpha = strength(player);
+                if (alpha > 0.0f) {
+                    draw_player(list, player, snapshot, config, alpha);
+                }
+            }
         }
     }
 

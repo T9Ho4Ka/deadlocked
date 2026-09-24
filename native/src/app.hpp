@@ -19,6 +19,7 @@
 #include "cs2/snapshot.hpp"
 #include "overlay/esp.hpp"
 #include "overlay/model.hpp"
+#include "overlay/sounds.hpp"
 #include "overlay/trails.hpp"
 #include "overlay/window.hpp"
 
@@ -115,6 +116,7 @@ private:
 
     overlay::Window overlay_;
     overlay::Trails trails_;
+    overlay::Sounds sounds_;
     overlay::ModelRenderer models_;
     std::optional<cs2::Game> game_;
     cs2::Features features_;

@@ -222,6 +222,7 @@ PlayerData Game::player_data(const Player& player, const Player& local) {
     data.has_bomb = player.has_bomb(*this);
     data.color = player.color(*this);
     data.rotation = player.rotation(*this);
+    data.sound = player.making_sound(*this);
 
     data.skeleton = player.skeleton(*this, local);
     data.bones = Player::bone_positions(data.skeleton);

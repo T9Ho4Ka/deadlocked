@@ -43,6 +43,7 @@ add_executable(deadlocked-native
     src/overlay/window.cpp
     src/overlay/esp.cpp
     src/overlay/trails.cpp
+    src/overlay/sounds.cpp
     src/overlay/gl.cpp
     src/overlay/model.cpp
     src/game_math.cpp
@@ -82,6 +83,7 @@ add_library(deadlocked-core STATIC
     src/overlay/window.cpp
     src/overlay/esp.cpp
     src/overlay/trails.cpp
+    src/overlay/sounds.cpp
     src/overlay/gl.cpp
     src/overlay/model.cpp
     src/game_math.cpp

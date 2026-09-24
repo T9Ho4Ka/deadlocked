@@ -9,6 +9,7 @@
 
 #include "config/weapon.hpp"
 #include "cs2/entity.hpp"
+#include "cs2/sound.hpp"
 #include "cs2/types.hpp"
 #include "math.hpp"
 
@@ -19,8 +20,6 @@ namespace dl::cs2 {
 ///
 /// Everything here is a value. Nothing points back into the game, because by the time the
 /// overlay draws, the entity it came from may already be gone.
-
-enum class SoundType { Footstep, Gunshot, Weapon };
 
 struct PlayerData {
     std::uint64_t steam_id = 0;
