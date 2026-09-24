@@ -141,6 +141,19 @@ Mat4 Game::view_matrix() const {
     return process_.read<Mat4>(offsets_.direct.view_matrix);
 }
 
+void Game::tick() {
+    // reading the input is a single small read, so it happens every pass
+    input_.update(process_, offsets_);
+
+    // the entity list is hundreds of reads, so it is rebuilt on a timer instead
+    constexpr auto cache_interval = std::chrono::milliseconds(200);
+    const auto now = std::chrono::steady_clock::now();
+    if (now - last_cache_ >= cache_interval) {
+        cache_entities();
+        last_cache_ = now;
+    }
+}
+
 void Game::cache_entities() {
     players_.clear();
     dead_players_.clear();

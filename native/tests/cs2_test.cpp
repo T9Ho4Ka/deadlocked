@@ -4,6 +4,7 @@
 #include <cmath>
 
 #include "cs2/entity.hpp"
+#include "cs2/input.hpp"
 #include "cs2/types.hpp"
 #include "cs2/weapon_index.hpp"
 
@@ -150,6 +151,28 @@ int main() {
 
     check(cs2::mesh_skeleton_bone_count == 96 && cs2::bone_stride == 32,
           "skeleton shape matches the game's");
+
+    // --- bit set indexing, which the input layer reads key state through ---
+    // 0b0000_0101 -> bits 0 and 2 of the first byte
+    const std::array<std::uint8_t, 4> bits{0b0000'0101, 0b1000'0000, 0x00, 0xFF};
+    check(cs2::test_bit(bits, 0) && !cs2::test_bit(bits, 1) && cs2::test_bit(bits, 2),
+          "bits are read from the least significant end");
+    check(cs2::test_bit(bits, 15), "bit 15 is the top bit of the second byte");
+    check(!cs2::test_bit(bits, 16) && !cs2::test_bit(bits, 23), "an empty byte reads as unset");
+    check(cs2::test_bit(bits, 24) && cs2::test_bit(bits, 31), "a full byte reads as set");
+    // an index past the end must answer false rather than read off the end of the buffer
+    check(!cs2::test_bit(bits, 32) && !cs2::test_bit(bits, 100000),
+          "an index past the end is not pressed, and does not read out of bounds");
+
+    check(cs2::Input::state_bytes * 8 == cs2::Input::max_keys, "the state covers every key");
+    // every key code has to fit in the state the game exposes
+    bool keys_fit = true;
+    for (const auto& entry : config::keycode_entries) {
+        if (static_cast<std::size_t>(entry.value) >= cs2::Input::max_keys) {
+            keys_fit = false;
+        }
+    }
+    check(keys_fit, "every key code indexes inside that state");
 
     return dl::test::report();
 }

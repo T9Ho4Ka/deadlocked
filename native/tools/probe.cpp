@@ -3,7 +3,10 @@
 /// Everything below cs2/schema can only be checked against a live game, so this is the
 /// harness that does it. It reads and never writes.
 
+#include <bit>
+#include <chrono>
 #include <cmath>
+#include <thread>
 #include <cstdio>
 #include <string>
 #include <variant>
@@ -233,6 +236,26 @@ int main() {
     }
     std::printf("local ammo    %d/%d, money %d\n", snapshot.local_player.clip_ammo,
                 snapshot.local_player.reserve_ammo, snapshot.local_player.money);
+
+    heading("input");
+    // sampled for a moment, because a key that is never pressed proves nothing either way
+    std::size_t max_set = 0;
+    std::size_t samples = 0;
+    for (int i = 0; i < 40; ++i) {
+        game->tick();
+        ++samples;
+        std::size_t set = 0;
+        for (const std::uint8_t byte : game->input().state()) {
+            set += static_cast<std::size_t>(std::popcount(byte));
+        }
+        max_set = std::max(max_set, set);
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    std::printf("sampled %zu times over two seconds\n", samples);
+    std::printf("most keys down at once: %zu\n", max_set);
+    if (max_set == 0) {
+        std::printf("nothing was pressed, which is expected while cs2 is not focused\n");
+    }
 
     if (game->planted_c4().has_value()) {
         std::printf("bomb          planted, ticking %s, being defused %s\n",

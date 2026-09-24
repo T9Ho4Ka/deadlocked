@@ -1,10 +1,12 @@
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 #include <optional>
 #include <vector>
 
 #include "cs2/entity.hpp"
+#include "cs2/input.hpp"
 #include "cs2/offsets.hpp"
 #include "cs2/snapshot.hpp"
 #include "os/process.hpp"
@@ -30,8 +32,15 @@ public:
     [[nodiscard]] const Offsets& offsets() const { return offsets_; }
     [[nodiscard]] bool running() const { return process_.valid(); }
 
+    /// One pass of the loop: refreshes the input, and rebuilds the entity snapshot when
+    /// enough time has gone by. Entities are rebuilt far less often than input is read,
+    /// because walking the entity list is expensive and the world changes slowly.
+    void tick();
+
     /// Walks the game's entity list and refills the snapshot below.
     void cache_entities();
+
+    [[nodiscard]] const Input& input() const { return input_; }
 
     [[nodiscard]] const std::optional<Player>& local_player() const { return local_player_; }
     [[nodiscard]] const std::vector<Player>& players() const { return players_; }
@@ -78,6 +87,8 @@ private:
 
     os::Process process_;
     Offsets offsets_;
+    Input input_;
+    std::chrono::steady_clock::time_point last_cache_{};
 
     std::optional<Player> local_player_;
     std::vector<Player> players_;

@@ -75,6 +75,7 @@ Fedora dependencies: `sudo dnf install gcc-c++ cmake ninja-build glfw-devel mesa
 | `src/cs2/entity.cpp` | entities, players, skeletons and the planted bomb |
 | `src/cs2/game.cpp` | attaching, the entity list walk, convars and the snapshot |
 | `src/cs2/snapshot.cpp` | one frame copied out of the game for the overlay to draw |
+| `src/cs2/input.cpp` | the game's own key state, so hotkeys work without focus |
 
 ## Config
 
@@ -103,7 +104,8 @@ duplicated here. A build that cannot find them falls back to the ImGui built in 
 9. **cs2: the rest of the player, skeletons, inventory, round stats** — done
 10. **math: angles, projection, aim smoothing** — done, and covered by tests
 11. **cs2: the snapshot, the view matrix and the convars** — done
-12. cs2: the input layer and the tick loop
+12. **cs2: the input layer and the tick loop** — done, though the key state offset is
+    only verifiable with cs2 focused and a key held
 13. cs2: the physics world and real line of sight, replacing the spotted flag
 14. overlay: the OpenGL esp renderer, the transparent window, uinput
 15. features: aimbot, triggerbot, rcs, and the rest
