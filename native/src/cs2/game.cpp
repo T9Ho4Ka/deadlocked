@@ -290,25 +290,25 @@ void Game::build_snapshot(Snapshot& out) {
                 const Vec3 at = value.entity.position(*this);
                 if constexpr (std::is_same_v<T, DroppedWeapon>) {
                     out.entities.push_back(WeaponInfo{
-                        value.weapon, at,
+                        value.entity.address(), value.weapon, at,
                         process_.read<std::int32_t>(value.entity.address() +
                                                     offsets_.weapon.clip_primary),
                         process_.read<std::int32_t>(value.entity.address() +
                                                     offsets_.weapon.reserve_ammo)});
                 } else if constexpr (std::is_same_v<T, Molotov>) {
-                    out.entities.push_back(MolotovInfo{at, value.is_incendiary});
+                    out.entities.push_back(MolotovInfo{value.entity.address(), at, value.is_incendiary});
                 } else if constexpr (std::is_same_v<T, Inferno>) {
-                    out.entities.push_back(InfernoInfo{at});
+                    out.entities.push_back(InfernoInfo{value.entity.address(), at});
                 } else if constexpr (std::is_same_v<T, Chicken>) {
-                    out.entities.push_back(ChickenInfo{at});
+                    out.entities.push_back(ChickenInfo{value.entity.address(), at});
                 } else if constexpr (std::is_same_v<T, Smoke>) {
-                    out.entities.push_back(GrenadeInfo{at, "Smoke"});
+                    out.entities.push_back(GrenadeInfo{value.entity.address(), at, "Smoke"});
                 } else if constexpr (std::is_same_v<T, Flashbang>) {
-                    out.entities.push_back(GrenadeInfo{at, "Flashbang"});
+                    out.entities.push_back(GrenadeInfo{value.entity.address(), at, "Flashbang"});
                 } else if constexpr (std::is_same_v<T, HeGrenade>) {
-                    out.entities.push_back(GrenadeInfo{at, "HE Grenade"});
+                    out.entities.push_back(GrenadeInfo{value.entity.address(), at, "HE Grenade"});
                 } else {
-                    out.entities.push_back(GrenadeInfo{at, "Decoy"});
+                    out.entities.push_back(GrenadeInfo{value.entity.address(), at, "Decoy"});
                 }
             },
             entity);

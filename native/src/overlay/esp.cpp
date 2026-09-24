@@ -15,6 +15,7 @@
 #include "config/weapon_class.hpp"
 #include "cs2/snapshot.hpp"
 #include "game_math.hpp"
+#include "overlay/trails.hpp"
 
 namespace dl::overlay {
 namespace {
@@ -326,7 +327,27 @@ void draw_text(ImDrawList* list, const config::TextCategory& style, const Vec2& 
                   text.c_str());
 }
 
-void draw_entities(ImDrawList* list, const Snapshot& snapshot, const config::Config& config) {
+/// The path a grenade has flown, projected and drawn as a line.
+void draw_trail(ImDrawList* list, const Trails& trails, std::uintptr_t entity,
+                const Snapshot& snapshot, const ui::Color& color, float thickness) {
+    const std::vector<Vec3>* path = trails.path(entity);
+    if (path == nullptr || path->size() < 2) {
+        return;
+    }
+    for (std::size_t i = 1; i < path->size(); ++i) {
+        const auto from = game_math::world_to_screen((*path)[i - 1], snapshot.view_matrix,
+                                                      snapshot.window_size);
+        const auto to = game_math::world_to_screen((*path)[i], snapshot.view_matrix,
+                                                    snapshot.window_size);
+        if (!from.has_value() || !to.has_value()) {
+            continue;
+        }
+        list->AddLine(to_im(*from), to_im(*to), to_u32(color), thickness);
+    }
+}
+
+void draw_entities(ImDrawList* list, const Snapshot& snapshot, const config::Config& config,
+                   const Trails& trails) {
     const config::HudConfig& hud = config.hud;
 
     for (const cs2::EntityInfo& entity : snapshot.entities) {
@@ -358,6 +379,12 @@ void draw_entities(ImDrawList* list, const Snapshot& snapshot, const config::Con
                     }
                     draw_text(list, hud.overlay_text[config::TextSlot::GrenadeName], *screen,
                               info.name);
+                    // each kind of grenade gets its own trail colour
+                    const ui::Color& trail = info.name == "Smoke"      ? hud.grenade_trails.smoke
+                                             : info.name == "Flashbang" ? hud.grenade_trails.flash
+                                             : info.name == "Decoy"     ? hud.grenade_trails.decoy
+                                                                        : hud.grenade_trails.he;
+                    draw_trail(list, trails, info.entity, snapshot, trail, hud.line_width);
                 } else if constexpr (std::is_same_v<T, cs2::MolotovInfo>) {
                     if (!hud.grenade_trails.enabled) {
                         return;
@@ -367,6 +394,7 @@ void draw_entities(ImDrawList* list, const Snapshot& snapshot, const config::Con
                     list->AddCircle(to_im(*screen), 8.0f, to_u32(color), 0, hud.line_width);
                     draw_text(list, hud.overlay_text[config::TextSlot::GrenadeName], *screen,
                               info.is_incendiary ? "Incendiary" : "Molotov");
+                    draw_trail(list, trails, info.entity, snapshot, color, hud.line_width);
                 } else if constexpr (std::is_same_v<T, cs2::InfernoInfo>) {
                     if (!hud.grenade_trails.enabled) {
                         return;
@@ -434,6 +462,72 @@ void draw_crosshair(ImDrawList* list, const Snapshot& snapshot, const config::Co
                   color, width);
 }
 
+/// The radius on screen that a given angle covers, given the field of view the player has.
+float fov_radius(float target_fov, float current_fov, float screen_width) {
+    const float current = std::tan(glm::radians(current_fov) * 0.5f);
+    if (current == 0.0f) {
+        return 0.0f;
+    }
+    return std::tan(glm::radians(target_fov) * 0.5f) / current * (screen_width * 0.5f);
+}
+
+void draw_fov_circle(ImDrawList* list, const Snapshot& snapshot, const config::Config& config,
+                     const FeatureState& features) {
+    if (!config.hud.fov_circle) {
+        return;
+    }
+    const config::WeaponConfig& per_weapon = config.aim[snapshot.weapon];
+    const config::AimbotConfig& settings =
+        per_weapon.aimbot.enable_override ? per_weapon.aimbot : config.aim.global.aimbot;
+    if (!settings.enabled ||
+        (settings.mode == config::KeyMode::Toggle && !features.aimbot_active)) {
+        return;
+    }
+
+    const float current_fov = config.misc.fov_changer
+                                  ? static_cast<float>(config.misc.desired_fov)
+                                  : static_cast<float>(config::cs2::default_fov);
+    const ImVec2 centre(snapshot.window_size.x * 0.5f, snapshot.window_size.y * 0.5f);
+
+    const auto circle = [&](float target, ImU32 color) {
+        list->AddCircle(centre, fov_radius(target, current_fov, snapshot.window_size.x), color, 0,
+                        config.hud.line_width);
+    };
+
+    if (!settings.distance_adjusted_fov) {
+        circle(settings.fov, IM_COL32(255, 255, 255, 255));
+        return;
+    }
+    // one ring per distance band, since the aim widens its search for closer targets
+    for (const auto& [distance, color] :
+         {std::pair{125.0f, IM_COL32(0, 255, 0, 255)}, std::pair{250.0f, IM_COL32(255, 255, 0, 255)},
+          std::pair{500.0f, IM_COL32(255, 0, 0, 255)}}) {
+        circle(settings.fov * std::max(5.0f - (distance / 125.0f), 1.0f), color);
+    }
+}
+
+void draw_keybinds(ImDrawList* list, const Snapshot& snapshot, const config::Config& config,
+                   const FeatureState& features) {
+    if (!config.hud.keybind_list) {
+        return;
+    }
+    const config::TextCategory& style = config.hud.overlay_text[config::TextSlot::KeybindList];
+    Vec2 at(12.0f, snapshot.window_size.y * 0.5f);
+
+    // green while the feature is actually on, so the list doubles as a status light
+    const ui::Color active(120, 240, 120);
+    config::TextCategory shown = style;
+
+    shown.color = features.aimbot_active ? active : style.color;
+    draw_text(list, shown, at,
+              "Aimbot: " + std::string(config::enum_name(config.aim.aimbot_hotkey)));
+    at.y += style.font_size;
+
+    shown.color = features.triggerbot_active ? active : style.color;
+    draw_text(list, shown, at,
+              "Triggerbot: " + std::string(config::enum_name(config.aim.triggerbot_hotkey)));
+}
+
 void draw_spectators(ImDrawList* list, const Snapshot& snapshot, const config::Config& config) {
     if (!config.hud.spectator_list || snapshot.spectators.empty()) {
         return;
@@ -448,7 +542,8 @@ void draw_spectators(ImDrawList* list, const Snapshot& snapshot, const config::C
 
 }  // namespace
 
-void draw_esp(const Snapshot& snapshot, const config::Config& config) {
+void draw_esp(const Snapshot& snapshot, const config::Config& config,
+              const FeatureState& features, const Trails& trails) {
     if (!snapshot.in_game) {
         return;
     }
@@ -466,9 +561,11 @@ void draw_esp(const Snapshot& snapshot, const config::Config& config) {
         }
     }
 
-    draw_entities(list, snapshot, config);
+    draw_entities(list, snapshot, config, trails);
     draw_bomb(list, snapshot, config);
     draw_crosshair(list, snapshot, config);
+    draw_fov_circle(list, snapshot, config, features);
+    draw_keybinds(list, snapshot, config, features);
     draw_spectators(list, snapshot, config);
 }
 

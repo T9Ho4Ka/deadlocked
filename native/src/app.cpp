@@ -234,6 +234,7 @@ void App::update_game() {
     game_->tick();
     features_.run(*game_, state_.config, mouse_);
     game_->build_snapshot(snapshot_);
+    trails_.update(snapshot_);
 }
 
 void App::draw_overlay() {
@@ -247,7 +248,9 @@ void App::draw_overlay() {
     ImGui::SetCurrentContext(overlay_context_);
     overlay_.begin_frame();
     if (snapshot_.in_game && features_.esp_enabled(state_.config)) {
-        overlay::draw_esp(snapshot_, state_.config);
+        const overlay::FeatureState features{features_.aimbot_active(),
+                                             features_.triggerbot_active()};
+        overlay::draw_esp(snapshot_, state_.config, features, trails_);
     }
     overlay_.end_frame();
     ImGui::SetCurrentContext(settings_context_);

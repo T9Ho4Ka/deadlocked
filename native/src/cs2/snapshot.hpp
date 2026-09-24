@@ -53,6 +53,8 @@ struct PlayerData {
 };
 
 struct WeaponInfo {
+    /// where the entity lives in the game, used only to key its trail between frames
+    std::uintptr_t entity = 0;
     config::Weapon weapon = config::Weapon::None;
     Vec3 position{0.0f};
     std::int32_t clip_ammo = 0;
@@ -60,20 +62,28 @@ struct WeaponInfo {
 };
 
 struct GrenadeInfo {
+    /// where the entity lives in the game, used only to key its trail between frames
+    std::uintptr_t entity = 0;
     Vec3 position{0.0f};
     std::string name;
 };
 
 struct MolotovInfo {
+    /// where the entity lives in the game, used only to key its trail between frames
+    std::uintptr_t entity = 0;
     Vec3 position{0.0f};
     bool is_incendiary = false;
 };
 
 struct InfernoInfo {
+    /// where the entity lives in the game, used only to key its trail between frames
+    std::uintptr_t entity = 0;
     Vec3 position{0.0f};
 };
 
 struct ChickenInfo {
+    /// where the entity lives in the game, used only to key its trail between frames
+    std::uintptr_t entity = 0;
     Vec3 position{0.0f};
 };
 
