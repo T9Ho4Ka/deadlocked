@@ -22,6 +22,7 @@ add_executable(deadlocked-native
     src/config/config.cpp
     src/config/keycode.cpp
     src/os/process.cpp
+    src/cs2/schema.cpp
 )
 
 target_include_directories(deadlocked-native PRIVATE src)
@@ -39,6 +40,7 @@ add_library(deadlocked-core STATIC
     src/config/config.cpp
     src/config/keycode.cpp
     src/os/process.cpp
+    src/cs2/schema.cpp
 )
 target_include_directories(deadlocked-core PUBLIC src)
 target_link_libraries(deadlocked-core PUBLIC imgui tomlplusplus::tomlplusplus)
@@ -50,4 +52,10 @@ foreach(test_name config process)
     target_link_libraries(${test_name}_test PRIVATE deadlocked-core)
     target_compile_options(${test_name}_test PRIVATE -Wall -Wextra)
     add_test(NAME ${test_name} COMMAND ${test_name}_test)
+endforeach()
+
+# the process test looks its own symbols up through the dynamic symbol table
+target_link_options(process_test PRIVATE -rdynamic)
+
+foreach(unused_guard 0)
 endforeach()

@@ -25,7 +25,10 @@ Tests are plain executables, no framework:
 ctest --test-dir build --output-on-failure
 ```
 
-`process_test` reads this very process's memory, so it needs no game running. `config_test` writes into a scratch directory, never the real config.
+`process_test` reads this very process's memory and resolves symbols out of libc, so it
+needs no game running. `config_test` writes into a scratch directory, never the real
+config. Nothing above covers `cs2/schema.cpp`: it can only be exercised against a live
+CS2, and a wrong layout constant there shows up as a class that is simply not found.
 
 Define `DL_READ_ONLY` to compile out every write to the game's memory, the same as the
 rust client's `read-only` feature.
@@ -48,7 +51,8 @@ Fedora dependencies: `sudo dnf install gcc-c++ cmake ninja-build glfw-devel mesa
 | `src/config/font.hpp` | the six bundled typefaces |
 | `src/config/keycode.cpp` | key codes and capturing a pressed key |
 | `src/config/config.cpp` | TOML load and save |
-| `src/os/process.cpp` | reading another process's memory, modules, pattern scanning |
+| `src/os/process.cpp` | reading another process's memory, modules, elf lookups, scanning |
+| `src/cs2/schema.cpp` | the game's schema system: class field offsets by name |
 
 ## Config
 
@@ -71,6 +75,7 @@ duplicated here. A build that cannot find them falls back to the ImGui built in 
 3. **config: hud, overlay text, fonts** — done
 4. **config: aim, weapons, bones** — done, the config tree is complete
 5. **os: process access, module lookup, pattern scanning** — done
-6. cs2: the schema offsets and reading entities out of the game
-7. overlay: the OpenGL esp renderer
-8. radar client and the update check
+6. **cs2: the schema reader** — done, but only verifiable against a running game
+7. cs2: the offset table on top of it, then reading entities
+8. overlay: the OpenGL esp renderer
+9. radar client and the update check

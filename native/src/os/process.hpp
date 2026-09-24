@@ -108,6 +108,41 @@ public:
     [[nodiscard]] std::optional<std::uintptr_t> scan(std::string_view pattern,
                                                      std::uintptr_t base_address) const;
 
+    /// Resolves a rip relative operand: reads the 32 bit displacement stored `offset` bytes
+    /// into the instruction and adds it to the address just past the instruction.
+    [[nodiscard]] std::uintptr_t get_relative_address(std::uintptr_t instruction,
+                                                      std::size_t offset,
+                                                      std::size_t instruction_size) const;
+
+    /// Difference between where a module is actually loaded and the addresses baked into
+    /// it at link time. Zero for a non relocatable executable, the load address for a
+    /// shared library or a pie binary.
+    [[nodiscard]] std::uintptr_t load_bias(std::uintptr_t base_address) const;
+
+    /// Walks the module's program header table for a segment of the given type.
+    [[nodiscard]] std::optional<std::uintptr_t> get_segment_from_pht(std::uintptr_t base_address,
+                                                                     std::uint32_t tag) const;
+
+    /// Value of one tag in the module's .dynamic section, for example DT_STRTAB or DT_SYMTAB.
+    [[nodiscard]] std::optional<std::uintptr_t> get_address_from_dynamic_section(
+        std::uintptr_t base_address, std::uintptr_t tag) const;
+
+    /// Address of an exported symbol, found through the module's dynamic symbol table.
+    [[nodiscard]] std::optional<std::uintptr_t> get_module_export(
+        std::uintptr_t base_address, std::string_view export_name) const;
+
+    /// Address of a source engine interface, walking the list CreateInterface registers.
+    [[nodiscard]] std::optional<std::uintptr_t> get_interface_offset(
+        std::uintptr_t base_address, std::string_view interface_name) const;
+
+    /// Address of a convar object, by name, inside the cvar interface.
+    [[nodiscard]] std::optional<std::uintptr_t> get_convar(std::uintptr_t convar_interface,
+                                                           std::string_view convar_name) const;
+
+    /// Nth entry of an interface's vtable.
+    [[nodiscard]] std::uintptr_t get_interface_function(std::uintptr_t interface_address,
+                                                        std::size_t index) const;
+
 private:
     bool read_raw(std::uintptr_t address, void* out, std::size_t size) const;
     bool write_raw(std::uintptr_t address, const void* data, std::size_t size) const;

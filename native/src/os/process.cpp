@@ -23,6 +23,10 @@ namespace {
 constexpr std::size_t max_string_length = 1024;
 /// slack added on each side of the game's modules, same as the rust client
 constexpr std::uintptr_t data_range_slack = 1'000'000;
+/// The lists below live in another process's memory and are walked by following pointers
+/// read out of it. A corrupt or shifted pointer would otherwise spin forever, so every walk
+/// is capped. The real lists are nowhere near these sizes.
+constexpr std::size_t max_list_steps = 100'000;
 
 std::optional<int> find_pid(std::string_view process_name) {
     std::error_code error;
@@ -379,6 +383,167 @@ std::optional<std::uintptr_t> Process::scan(std::string_view pattern,
         return std::nullopt;
     }
     return base_address + *hit;
+}
+
+std::uintptr_t Process::get_relative_address(std::uintptr_t instruction, std::size_t offset,
+                                             std::size_t instruction_size) const {
+    // the displacement is relative to the instruction pointer, which by then has already
+    // moved past the whole instruction
+    const auto displacement = read<std::int32_t>(instruction + offset);
+    return instruction + instruction_size + static_cast<std::uintptr_t>(displacement);
+}
+
+std::uintptr_t Process::load_bias(std::uintptr_t base_address) const {
+    // the bias is the load address minus the lowest address the module was linked for.
+    // a shared library is linked at 0, so the bias is simply where it landed; a non pie
+    // executable is linked at its final address, so the bias is zero and adding the load
+    // address would count it twice.
+    constexpr std::uint32_t pt_load = 1;
+    const auto first_entry =
+        read<std::uintptr_t>(base_address + constants::elf::program_header_offset) + base_address;
+    const auto entry_size = static_cast<std::size_t>(
+        read<std::uint16_t>(base_address + constants::elf::program_header_entry_size));
+    const auto entries =
+        read<std::uint16_t>(base_address + constants::elf::program_header_num_entries);
+
+    std::uintptr_t lowest = std::numeric_limits<std::uintptr_t>::max();
+    for (std::uint16_t i = 0; i < entries; ++i) {
+        const std::uintptr_t entry = first_entry + static_cast<std::size_t>(i) * entry_size;
+        if (read<std::uint32_t>(entry) != pt_load) {
+            continue;
+        }
+        lowest = std::min(lowest, read<std::uintptr_t>(entry + 0x10));  // p_vaddr
+    }
+
+    if (lowest == std::numeric_limits<std::uintptr_t>::max() || lowest > base_address) {
+        return base_address;
+    }
+    return base_address - lowest;
+}
+
+std::optional<std::uintptr_t> Process::get_segment_from_pht(std::uintptr_t base_address,
+                                                            std::uint32_t tag) const {
+    const auto first_entry =
+        read<std::uintptr_t>(base_address + constants::elf::program_header_offset) + base_address;
+    const auto entry_size = static_cast<std::size_t>(
+        read<std::uint16_t>(base_address + constants::elf::program_header_entry_size));
+    const auto entries =
+        read<std::uint16_t>(base_address + constants::elf::program_header_num_entries);
+
+    for (std::uint16_t i = 0; i < entries; ++i) {
+        const std::uintptr_t entry = first_entry + static_cast<std::size_t>(i) * entry_size;
+        if (read<std::uint32_t>(entry) == tag) {
+            return entry;
+        }
+    }
+    std::fprintf(stderr, "did not find segment %u in the program header table\n", tag);
+    return std::nullopt;
+}
+
+std::optional<std::uintptr_t> Process::get_address_from_dynamic_section(
+    std::uintptr_t base_address, std::uintptr_t tag) const {
+    const std::optional<std::uintptr_t> section =
+        get_segment_from_pht(base_address, constants::elf::dynamic_section_pht_type);
+    if (!section.has_value()) {
+        return std::nullopt;
+    }
+
+    constexpr std::size_t register_size = 8;
+    // p_vaddr of the dynamic segment, moved to where the module actually sits
+    std::uintptr_t address =
+        read<std::uintptr_t>(*section + 2 * register_size) + load_bias(base_address);
+
+    for (std::size_t step = 0; step < max_list_steps; ++step) {
+        const auto value = read<std::uintptr_t>(address);
+        if (value == 0) {
+            break;
+        }
+        if (value == tag) {
+            return read<std::uintptr_t>(address + register_size);
+        }
+        address += register_size * 2;
+    }
+    std::fprintf(stderr, "did not find tag %zu in the dynamic section\n",
+                 static_cast<std::size_t>(tag));
+    return std::nullopt;
+}
+
+std::optional<std::uintptr_t> Process::get_module_export(std::uintptr_t base_address,
+                                                         std::string_view export_name) const {
+    constexpr std::size_t symbol_size = 0x18;
+
+    const std::optional<std::uintptr_t> string_table =
+        get_address_from_dynamic_section(base_address, 0x05);
+    const std::optional<std::uintptr_t> symbol_table =
+        get_address_from_dynamic_section(base_address, 0x06);
+    if (!string_table.has_value() || !symbol_table.has_value()) {
+        return std::nullopt;
+    }
+
+    std::uintptr_t symbol = *symbol_table + symbol_size;
+    for (std::size_t step = 0; step < max_list_steps; ++step) {
+        const auto name_offset = read<std::uint32_t>(symbol);
+        if (name_offset == 0) {
+            break;
+        }
+        if (read_string(*string_table + name_offset) == export_name) {
+            return read<std::uintptr_t>(symbol + 0x08) + load_bias(base_address);
+        }
+        symbol += symbol_size;
+    }
+    std::fprintf(stderr, "export %.*s could not be found\n",
+                 static_cast<int>(export_name.size()), export_name.data());
+    return std::nullopt;
+}
+
+std::optional<std::uintptr_t> Process::get_interface_offset(
+    std::uintptr_t base_address, std::string_view interface_name) const {
+    const std::optional<std::uintptr_t> create_interface =
+        get_module_export(base_address, "CreateInterface");
+    if (!create_interface.has_value()) {
+        return std::nullopt;
+    }
+
+    const std::uintptr_t export_address = *create_interface + 0x10;
+    std::uintptr_t entry = read<std::uintptr_t>(
+        export_address + 0x07 + read<std::uint32_t>(export_address + 0x03));
+
+    for (std::size_t step = 0; step < max_list_steps && entry != 0; ++step) {
+        const auto name_address = read<std::uintptr_t>(entry + 8);
+        if (read_string(name_address).starts_with(interface_name)) {
+            const auto vfunc = read<std::uintptr_t>(entry);
+            return read<std::uint32_t>(vfunc + 0x03) + vfunc + 0x07;
+        }
+        entry = read<std::uintptr_t>(entry + 0x10);
+    }
+    return std::nullopt;
+}
+
+std::optional<std::uintptr_t> Process::get_convar(std::uintptr_t convar_interface,
+                                                  std::string_view convar_name) const {
+    if (convar_interface == 0) {
+        return std::nullopt;
+    }
+
+    const auto objects = read<std::uintptr_t>(convar_interface + 0x50);
+    const auto count = read<std::uint32_t>(convar_interface + 160);
+    for (std::size_t i = 0; i < count; ++i) {
+        const auto object = read<std::uintptr_t>(objects + i * 16);
+        if (object == 0) {
+            break;
+        }
+        if (read_string(read<std::uintptr_t>(object)) == convar_name) {
+            return object;
+        }
+    }
+    std::fprintf(stderr, "did not find convar %.*s\n", static_cast<int>(convar_name.size()),
+                 convar_name.data());
+    return std::nullopt;
+}
+
+std::uintptr_t Process::get_interface_function(std::uintptr_t interface_address,
+                                               std::size_t index) const {
+    return read<std::uintptr_t>(read<std::uintptr_t>(interface_address) + index * 8);
 }
 
 }  // namespace dl::os
