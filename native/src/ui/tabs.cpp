@@ -689,6 +689,47 @@ void appearance_tab(AppState& state) {
     }
 }
 
+void application_tab(AppState& state) {
+    const Palette palette = state.config.theme.palette();
+    const Color accent = state.config.accent_color;
+    const float scale = state.config.theme.text_scale;
+
+    ImGui::PushFont(nullptr, heading_size * scale);
+    ImGui::TextColored(heading_color(palette, accent).vec4(), "deadlocked");
+    ImGui::PopFont();
+    ImGui::TextDisabled("author: avitrano");
+    ImGui::TextDisabled("native port, version %s", DL_VERSION);
+    ImGui::Separator();
+
+    switch (state.update.state) {
+        case net::UpdateState::Checking:
+            ImGui::TextDisabled("checking for updates...");
+            break;
+        case net::UpdateState::UpToDate:
+            ImGui::TextColored(Color(120, 240, 120).vec4(), "Up to date");
+            break;
+        case net::UpdateState::Available:
+            ImGui::TextColored(Color(240, 200, 120).vec4(), "Update available: %s",
+                               state.update.version.c_str());
+            if (!state.update.url.empty() && button("Download")) {
+                open_url(state.update.url.c_str());
+            }
+            break;
+        case net::UpdateState::Failed:
+            ImGui::TextColored(Color(240, 120, 120).vec4(), "Update check failed");
+            ImGui::TextDisabled("%s", state.update.error.c_str());
+            break;
+    }
+
+    ImGui::Spacing();
+    // the check asks about the repository this was built against, which is not necessarily
+    // the one it was forked from
+    ImGui::TextDisabled("releases from %s", DL_UPDATE_REPO);
+    if (button("Report Issue")) {
+        open_url("https://github.com/avitran0/deadlocked/issues");
+    }
+}
+
 /// Tabs whose settings live in the cs2 layer, which is not ported yet.
 void placeholder(const char* name, const Palette& palette, Color accent, float scale) {
     ImGui::PushFont(nullptr, heading_size * scale);
@@ -715,7 +756,7 @@ void draw_tab(AppState& state) {
         case Tab::Unsafe: unsafe_tab(state); break;
         case Tab::Radar: radar_tab(state); break;
         case Tab::Grenades: placeholder("Grenades", palette, accent, scale); break;
-        case Tab::Application: placeholder("Application", palette, accent, scale); break;
+        case Tab::Application: application_tab(state); break;
     }
 }
 

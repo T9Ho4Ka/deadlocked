@@ -14,6 +14,7 @@
 #include "cs2/features.hpp"
 #include "cs2/game.hpp"
 #include "net/radar.hpp"
+#include "net/update.hpp"
 #include "os/mouse.hpp"
 #include "cs2/snapshot.hpp"
 #include "overlay/esp.hpp"
@@ -71,6 +72,8 @@ struct AppState {
     std::array<ImFont*, config::font_count> fonts{};
     /// what the radar thread last reported, so the ui can show it
     net::RadarStatus radar_status = net::RadarStatus::Disabled;
+    /// what the update check last reported
+    net::UpdateResult update;
     /// the config profiles on disk, and the name being typed for a new one
     std::vector<std::filesystem::path> available_configs;
     std::filesystem::path current_config;
@@ -117,6 +120,7 @@ private:
     cs2::Features features_;
     os::Mouse mouse_;
     net::RadarClient radar_;
+    net::UpdateCheck updates_;
     cs2::Snapshot snapshot_;
     std::chrono::steady_clock::time_point last_attach_{};
 

@@ -86,6 +86,7 @@ Fedora dependencies: `sudo dnf install gcc-c++ cmake ninja-build glfw-devel mesa
 | `src/overlay/gl.cpp` | the opengl entry points the model shaders need |
 | `src/net/postcard.hpp` | the wire format the radar server speaks |
 | `src/net/radar.cpp` | the radar client, on its own thread |
+| `src/net/update.cpp` | asks github whether a newer release exists |
 
 ## Running
 
@@ -148,4 +149,15 @@ duplicated here. A build that cannot find them falls back to the ImGui built in 
     at once, since the full set is ninety megabytes
 18. **radar client** — done, the frame matches rust's own serializer byte for byte
 
-Not ported: the update check, the sound esp, and `server/`, which is its own crate.
+Not ported: the sound esp, and `server/`, which is its own crate.
+
+## The update check
+
+It asks about `avitran0/deadlocked`, the repository the rust client is built from, not
+whichever fork this was cloned out of. A fork publishes no releases, so pointing it at one
+would answer every check with a 404. Both the repository and the version this build reports
+are cmake cache entries, so a fork that does publish releases can point at itself:
+
+```sh
+cmake -S . -B build -G Ninja -DDL_UPDATE_REPO=you/deadlocked -DDL_VERSION=1.3.0
+```

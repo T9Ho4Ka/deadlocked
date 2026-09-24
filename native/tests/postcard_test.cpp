@@ -5,6 +5,7 @@
 #include "cs2/snapshot.hpp"
 #include "net/postcard.hpp"
 #include "net/radar.hpp"
+#include "net/update.hpp"
 #include "net/radar_frame.hpp"
 
 using namespace dl;
@@ -101,6 +102,29 @@ int main() {
     check(net::RadarClient::normalize_url("relay.example.com///") == "relay.example.com",
           "several trailing slashes come off");
     check(net::RadarClient::normalize_url("").empty(), "an empty host stays empty");
+
+    // --- version comparison, which decides whether the client nags ---
+    using net::UpdateCheck;
+    check(UpdateCheck::is_newer("1.3.1", "1.3.0"), "a higher patch is newer");
+    check(UpdateCheck::is_newer("v1.3.1", "1.3.0"), "a leading v is ignored");
+    check(UpdateCheck::is_newer("1.4.0", "1.3.9"), "a higher minor beats a higher patch");
+    check(UpdateCheck::is_newer("2.0.0", "1.99.99"), "and a higher major beats both");
+    check(!UpdateCheck::is_newer("1.3.0", "1.3.0"), "the same version is not newer");
+    check(!UpdateCheck::is_newer("1.2.9", "1.3.0"), "an older one is not newer");
+    // a tag that cannot be read sorts as zero, so it reads as older rather than newer
+    check(!UpdateCheck::is_newer("not-a-version", "1.3.0"), "an unreadable tag is not newer");
+    check(!UpdateCheck::is_newer("1.3", "1.3.0"), "a short tag is not newer than its own zero");
+
+    // --- pulling the fields out of github's answer ---
+    const std::string body =
+        R"({"url":"x","tag_name":"v1.3.1","name":"1.3.1",)"
+        R"("html_url":"https:\/\/github.com\/avitran0\/deadlocked\/releases\/tag\/v1.3.1"})";
+    check(UpdateCheck::json_string_field(body, "tag_name") == "v1.3.1", "the tag is read out");
+    check(UpdateCheck::json_string_field(body, "html_url") ==
+              "https://github.com/avitran0/deadlocked/releases/tag/v1.3.1",
+          "and the url, with github's escaped slashes undone");
+    check(UpdateCheck::json_string_field(body, "missing").empty(),
+          "a field that is not there comes back empty");
 
     return dl::test::report();
 }

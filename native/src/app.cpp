@@ -175,6 +175,7 @@ bool App::init() {
         std::fprintf(stderr, "overlay window ready\n");
     }
 
+    updates_.start();
     radar_.start();
     radar_.configure(state_.config.radar.enabled, state_.config.radar.url,
                      state_.config.radar_uuid);
@@ -306,6 +307,7 @@ void App::frame() {
         ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
 
     state_.radar_status = radar_.status();
+    state_.update = updates_.result();
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     // 0.0f keeps the size the style already resolved, only the typeface changes

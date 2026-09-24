@@ -12,6 +12,14 @@ endif()
 
 include(cmake/dependencies.cmake)
 
+find_package(OpenSSL REQUIRED)
+
+# what this build calls itself, and whose releases it compares against. the rust client
+# hardcodes the upstream repository; a fork publishes no releases, so pointing this at one
+# would answer every check with a 404.
+set(DL_VERSION "1.3.0" CACHE STRING "version this build reports")
+set(DL_UPDATE_REPO "avitran0/deadlocked" CACHE STRING "repository the update check asks about")
+
 add_executable(deadlocked-native
     src/main.cpp
     src/app.cpp
@@ -40,13 +48,17 @@ add_executable(deadlocked-native
     src/game_math.cpp
     src/net/radar_frame.cpp
     src/net/radar.cpp
+    src/net/update.cpp
 )
 
 target_include_directories(deadlocked-native PRIVATE src)
 # the rust client already ships the fonts, reuse them instead of duplicating assets
 target_compile_definitions(deadlocked-native PRIVATE
-    DL_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../cheat/assets")
-target_link_libraries(deadlocked-native PRIVATE imgui tomlplusplus::tomlplusplus glm::glm cgltf)
+    DL_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../cheat/assets"
+    DL_VERSION="${DL_VERSION}"
+    DL_UPDATE_REPO="${DL_UPDATE_REPO}")
+target_link_libraries(deadlocked-native PRIVATE imgui tomlplusplus::tomlplusplus glm::glm cgltf
+    OpenSSL::SSL OpenSSL::Crypto)
 target_compile_options(deadlocked-native PRIVATE -Wall -Wextra -Wpedantic)
 
 # tests: no framework, each one is a plain executable that prints its checks
@@ -75,11 +87,15 @@ add_library(deadlocked-core STATIC
     src/game_math.cpp
     src/net/radar_frame.cpp
     src/net/radar.cpp
+    src/net/update.cpp
 )
 target_include_directories(deadlocked-core PUBLIC src)
 target_compile_definitions(deadlocked-core PUBLIC
-    DL_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../cheat/assets")
-target_link_libraries(deadlocked-core PUBLIC imgui tomlplusplus::tomlplusplus glm::glm cgltf)
+    DL_ASSETS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../cheat/assets"
+    DL_VERSION="${DL_VERSION}"
+    DL_UPDATE_REPO="${DL_UPDATE_REPO}")
+target_link_libraries(deadlocked-core PUBLIC imgui tomlplusplus::tomlplusplus glm::glm cgltf
+    OpenSSL::SSL OpenSSL::Crypto)
 target_compile_options(deadlocked-core PRIVATE -Wall -Wextra -Wpedantic)
 
 foreach(test_name config process cs2 math bvh postcard)
