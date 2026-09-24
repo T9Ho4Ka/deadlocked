@@ -3,10 +3,9 @@
 C++ port of deadlocked, grown one module at a time. The Rust client in `cheat/` stays the
 working one and is not touched by anything here; this tree catches up to it gradually.
 
-Ported so far: the settings window shell, the theme system, and the whole config tree with
-its tabs. Everything that needs to read the game is still Rust only, so nothing here acts on
-CS2 yet: the Grenades and Application tabs are placeholders, the radar has no connection,
-and the status in the footer is a stub.
+The port is feature complete against the rust client, bar the update check and the sound
+esp. It attaches to CS2, reads its entities, draws the esp and the player models over it,
+moves the aim, and streams frames to the radar relay.
 
 ## Build
 
@@ -85,6 +84,8 @@ Fedora dependencies: `sudo dnf install gcc-c++ cmake ninja-build glfw-devel mesa
 | `src/overlay/trails.cpp` | where grenades have flown, kept between frames |
 | `src/overlay/model.cpp` | the players' own models, loaded from gltf and skinned |
 | `src/overlay/gl.cpp` | the opengl entry points the model shaders need |
+| `src/net/postcard.hpp` | the wire format the radar server speaks |
+| `src/net/radar.cpp` | the radar client, on its own thread |
 
 ## Running
 
@@ -142,4 +143,6 @@ duplicated here. A build that cannot find them falls back to the ImGui built in 
 16. **overlay: grenade trails, the fov circle, the keybind list** — done
 17. **overlay: the 3d model renderer** — done, models load on first use rather than all
     at once, since the full set is ninety megabytes
-18. radar client and the update check
+18. **radar client** — done, the frame matches rust's own serializer byte for byte
+
+Not ported: the update check, the sound esp, and `server/`, which is its own crate.

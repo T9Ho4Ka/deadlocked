@@ -38,6 +38,8 @@ add_executable(deadlocked-native
     src/overlay/gl.cpp
     src/overlay/model.cpp
     src/game_math.cpp
+    src/net/radar_frame.cpp
+    src/net/radar.cpp
 )
 
 target_include_directories(deadlocked-native PRIVATE src)
@@ -71,6 +73,8 @@ add_library(deadlocked-core STATIC
     src/overlay/gl.cpp
     src/overlay/model.cpp
     src/game_math.cpp
+    src/net/radar_frame.cpp
+    src/net/radar.cpp
 )
 target_include_directories(deadlocked-core PUBLIC src)
 target_compile_definitions(deadlocked-core PUBLIC
@@ -78,7 +82,7 @@ target_compile_definitions(deadlocked-core PUBLIC
 target_link_libraries(deadlocked-core PUBLIC imgui tomlplusplus::tomlplusplus glm::glm cgltf)
 target_compile_options(deadlocked-core PRIVATE -Wall -Wextra -Wpedantic)
 
-foreach(test_name config process cs2 math bvh)
+foreach(test_name config process cs2 math bvh postcard)
     add_executable(${test_name}_test tests/${test_name}_test.cpp)
     target_include_directories(${test_name}_test PRIVATE tests)
     target_link_libraries(${test_name}_test PRIVATE deadlocked-core)

@@ -12,6 +12,7 @@
 #include "ui/sidebar.hpp"
 #include "ui/tabs.hpp"
 #include "ui/theme.hpp"
+#include "net/radar_frame.hpp"
 #include "overlay/esp.hpp"
 #include "ui/widgets.hpp"
 
@@ -64,6 +65,7 @@ void load_fonts(std::array<ImFont*, config::font_count>& fonts, float size) {
 }  // namespace
 
 App::~App() {
+    radar_.stop();
     if (overlay_context_ != nullptr) {
         ImGui::SetCurrentContext(overlay_context_);
         ImGui_ImplOpenGL3_Shutdown();
@@ -171,6 +173,10 @@ bool App::init() {
         std::fprintf(stderr, "overlay window ready\n");
     }
 
+    radar_.start();
+    radar_.configure(state_.config.radar.enabled, state_.config.radar.url,
+                     state_.config.radar_uuid);
+
     std::fprintf(stderr, "window ready, close it to quit\n");
     return true;
 }
@@ -240,6 +246,14 @@ void App::update_game() {
     features_.run(*game_, state_.config, mouse_);
     game_->build_snapshot(snapshot_);
     trails_.update(snapshot_);
+
+    // the radar thread sends whatever the newest frame is, so encoding one it never gets
+    // to is only wasted when the link is slower than the game
+    radar_.configure(state_.config.radar.enabled, state_.config.radar.url,
+                     state_.config.radar_uuid);
+    if (state_.config.radar.enabled && snapshot_.in_game) {
+        radar_.submit(net::encode_radar_frame(snapshot_));
+    }
 }
 
 void App::draw_overlay() {
@@ -288,6 +302,8 @@ void App::frame() {
         ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar |
         ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+
+    state_.radar_status = radar_.status();
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     // 0.0f keeps the size the style already resolved, only the typeface changes

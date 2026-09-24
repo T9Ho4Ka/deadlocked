@@ -10,6 +10,7 @@
 #include "config/config.hpp"
 #include "cs2/features.hpp"
 #include "cs2/game.hpp"
+#include "net/radar.hpp"
 #include "os/mouse.hpp"
 #include "cs2/snapshot.hpp"
 #include "overlay/esp.hpp"
@@ -65,6 +66,8 @@ struct AppState {
     std::string text_popup;
     /// one entry per config::Font, all loaded up front so switching needs no atlas rebuild
     std::array<ImFont*, config::font_count> fonts{};
+    /// what the radar thread last reported, so the ui can show it
+    net::RadarStatus radar_status = net::RadarStatus::Disabled;
 
     /// the weapon block the aimbot tab is currently editing
     config::WeaponConfig& weapon_config() {
@@ -106,6 +109,7 @@ private:
     std::optional<cs2::Game> game_;
     cs2::Features features_;
     os::Mouse mouse_;
+    net::RadarClient radar_;
     cs2::Snapshot snapshot_;
     std::chrono::steady_clock::time_point last_attach_{};
 

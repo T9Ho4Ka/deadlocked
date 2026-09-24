@@ -313,8 +313,20 @@ void radar_tab(AppState& state) {
     if (section("Radar", palette, accent, scale)) {
         changed |= checkbox("Enabled", config.radar.enabled);
         ImGui::SameLine();
-        // the radar client is not ported, so there is no connection to report on yet
-        ImGui::TextColored(Color(240, 200, 120).vec4(), "Not connected");
+        switch (state.radar_status) {
+            case net::RadarStatus::Connected:
+                ImGui::TextColored(Color(120, 240, 120).vec4(), "Connected");
+                break;
+            case net::RadarStatus::FailedToConnect:
+                ImGui::TextColored(Color(240, 120, 120).vec4(), "Failed to connect");
+                break;
+            case net::RadarStatus::Disconnected:
+                ImGui::TextColored(Color(240, 200, 120).vec4(), "Disconnected");
+                break;
+            case net::RadarStatus::Disabled:
+                ImGui::TextColored(Color(240, 200, 120).vec4(), "Disabled");
+                break;
+        }
     }
 
     if (section("Connection", palette, accent, scale)) {
@@ -329,9 +341,11 @@ void radar_tab(AppState& state) {
 
         const std::string link = "https://radar.avitrano.com/?url=" + config.radar.url +
                                  "&game=" + config.radar_uuid;
+        ImGui::BeginDisabled(state.radar_status != net::RadarStatus::Connected);
         if (ImGui::Button("Open")) {
             open_url(link.c_str());
         }
+        ImGui::EndDisabled();
         ImGui::SameLine();
         if (ImGui::Button("Copy link")) {
             ImGui::SetClipboardText(link.c_str());
