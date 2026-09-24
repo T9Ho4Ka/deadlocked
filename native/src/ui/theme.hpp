@@ -123,6 +123,22 @@ struct ThemeConfig {
     [[nodiscard]] Color secondary_text(const Palette& palette) const;
 };
 
+/// Colors a button takes in each state.
+///
+/// egui gives every widget state its own border and text colour. ImGui has one global
+/// colour for each, so a button drawn straight through it never changes its border or
+/// brightens its label. These are kept here for the button helper to push by hand.
+struct ButtonColors {
+    Color border_idle;
+    Color border_hovered;
+    Color border_active;
+    Color text_idle;
+    Color text_hovered;
+};
+
+/// What the last call to `apply` worked out.
+[[nodiscard]] const ButtonColors& button_colors();
+
 /// Color for section headers: primary text tinted towards the accent, so headers read as
 /// their own level instead of blending into the body text.
 Color heading_color(const Palette& palette, Color accent);

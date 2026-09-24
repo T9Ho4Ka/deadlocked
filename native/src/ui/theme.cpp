@@ -19,6 +19,8 @@ Color contrasting_text(Color color, const Palette& palette) {
 
 void set(ImGuiStyle& style, ImGuiCol slot, Color color) { style.Colors[slot] = color.vec4(); }
 
+ButtonColors current_button_colors;
+
 }  // namespace
 
 Color lerp(Color from, Color to, float t) {
@@ -151,6 +153,8 @@ Color ThemeConfig::secondary_text(const Palette& palette) const {
     return lerp(palette.subtext, palette.text, std::clamp(text_contrast, 0.0f, 1.0f));
 }
 
+const ButtonColors& button_colors() { return current_button_colors; }
+
 Color heading_color(const Palette& palette, Color accent) {
     return lerp(palette.text, accent, 0.55f);
 }
@@ -215,6 +219,14 @@ void apply(const ThemeConfig& config, Color accent) {
     set(style, ImGuiCol_CheckMark, accent);
     set(style, ImGuiCol_SliderGrab, accent);
     set(style, ImGuiCol_SliderGrabActive, lerp(accent, palette.text, 0.25f));
+
+    // the border and the label both move with the state in egui, which imgui has no
+    // global way to express, so the values are stashed for the button helper to push
+    current_button_colors = ButtonColors{palette.overlay,
+                                         lerp(palette.overlay, accent, 0.5f),
+                                         accent,
+                                         secondary,
+                                         palette.text};
 
     set(style, ImGuiCol_Button, palette.surface);
     set(style, ImGuiCol_ButtonHovered, hovered);

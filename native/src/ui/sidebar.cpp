@@ -11,18 +11,13 @@ namespace {
 
 constexpr const char* issues_url = "https://github.com/avitran0/deadlocked/issues";
 
-bool tab_button(std::string_view label, bool selected, float width, const Palette& palette,
-                Color accent) {
-    const int styles = selected ? 3 : 0;
-    if (selected) {
-        const Color active = lerp(accent, palette.text, 0.1f);
-        ImGui::PushStyleColor(ImGuiCol_Button, accent.vec4());
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, active.vec4());
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, active.vec4());
-    }
-    const bool clicked = ImGui::Button(label.data(), ImVec2(width, 30.0f));
-    ImGui::PopStyleColor(styles);
-    return clicked;
+/// black or white on the accent, whichever stays readable, the same rule the theme uses
+/// for the selection colour
+Color on_accent(Color accent, const Palette& palette) {
+    const float luminance = 0.2126f * static_cast<float>(accent.r) +
+                            0.7152f * static_cast<float>(accent.g) +
+                            0.0722f * static_cast<float>(accent.b);
+    return luminance > 140.0f ? palette.backdrop : palette.text;
 }
 
 }  // namespace
@@ -59,7 +54,8 @@ void draw_sidebar(AppState& state) {
     if (ImGui::BeginChild("##tabs", ImVec2(0.0f, tabs_height > 0.0f ? tabs_height : 0.0f))) {
         const float width = ImGui::GetContentRegionAvail().x;
         for (const auto& [tab, label] : tabs) {
-            if (tab_button(label, state.tab == tab, width, palette, accent)) {
+            if (selectable_button(label.data(), state.tab == tab, ImVec2(width, 30.0f),
+                                  accent, on_accent(accent, palette))) {
                 state.tab = tab;
             }
         }
@@ -81,7 +77,7 @@ void draw_sidebar(AppState& state) {
     ImGui::TextColored(secondary.vec4(), "%.1f ms", 1000.0f * ImGui::GetIO().DeltaTime);
     ImGui::PopFont();
 
-    if (ImGui::Button("Report Issue", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+    if (button("Report Issue", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
         open_url(issues_url);
     }
 

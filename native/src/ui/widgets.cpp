@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 namespace dl::ui {
 namespace {
@@ -29,6 +30,85 @@ void open_url(const char* url) {
         int status = 0;
         waitpid(pid, &status, 0);
     }
+}
+
+namespace {
+
+/// What imgui will lay the button out as, so its state can be known before it is drawn.
+ImVec2 button_size(const char* label, const ImVec2& requested) {
+    const ImGuiStyle& style = ImGui::GetStyle();
+    const ImVec2 text = ImGui::CalcTextSize(label, nullptr, true);
+    ImVec2 size = requested;
+    if (size.x <= 0.0f) {
+        size.x = text.x + style.FramePadding.x * 2.0f;
+    }
+    if (size.y <= 0.0f) {
+        size.y = text.y + style.FramePadding.y * 2.0f;
+    }
+    return size;
+}
+
+/// hovered, and whether the button is being held down
+std::pair<bool, bool> button_state(const ImVec2& size) {
+    const ImVec2 min = ImGui::GetCursorScreenPos();
+    const ImVec2 max(min.x + size.x, min.y + size.y);
+    const bool hovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows) &&
+                         ImGui::IsMouseHoveringRect(min, max);
+    return {hovered, hovered && ImGui::IsMouseDown(ImGuiMouseButton_Left)};
+}
+
+}  // namespace
+
+bool button(const char* label, const ImVec2& size) {
+    const ButtonColors& colors = button_colors();
+    const auto [hovered, held] = button_state(button_size(label, size));
+
+    const Color border = held ? colors.border_active
+                        : hovered ? colors.border_hovered
+                                  : colors.border_idle;
+    ImGui::PushStyleColor(ImGuiCol_Border, border.vec4());
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          (hovered ? colors.text_hovered : colors.text_idle).vec4());
+    const bool clicked = ImGui::Button(label, size);
+    ImGui::PopStyleColor(2);
+    return clicked;
+}
+
+bool small_button(const char* label) {
+    const ImGuiStyle& style = ImGui::GetStyle();
+    const ImVec2 text = ImGui::CalcTextSize(label, nullptr, true);
+    // a small button keeps the horizontal padding and drops the vertical, as imgui does
+    const auto [hovered, held] = button_state(ImVec2(text.x + style.FramePadding.x * 2.0f, text.y));
+
+    const ButtonColors& colors = button_colors();
+    const Color border = held ? colors.border_active
+                        : hovered ? colors.border_hovered
+                                  : colors.border_idle;
+    ImGui::PushStyleColor(ImGuiCol_Border, border.vec4());
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          (hovered ? colors.text_hovered : colors.text_idle).vec4());
+    const bool clicked = ImGui::SmallButton(label);
+    ImGui::PopStyleColor(2);
+    return clicked;
+}
+
+bool selectable_button(const char* label, bool selected, const ImVec2& size, Color accent,
+                       Color selected_text) {
+    if (!selected) {
+        return button(label, size);
+    }
+
+    // a selected button is filled rather than outlined, and its label has to stay readable
+    // on the accent, which a bright accent would otherwise swallow
+    const Color hovered = lerp(accent, selected_text, 0.15f);
+    ImGui::PushStyleColor(ImGuiCol_Button, accent.vec4());
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, hovered.vec4());
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, hovered.vec4());
+    ImGui::PushStyleColor(ImGuiCol_Border, accent.vec4());
+    ImGui::PushStyleColor(ImGuiCol_Text, selected_text.vec4());
+    const bool clicked = ImGui::Button(label, size);
+    ImGui::PopStyleColor(5);
+    return clicked;
 }
 
 bool section(const char* title, const Palette& palette, Color accent, float scale) {
@@ -78,7 +158,7 @@ bool keybind(const char* label, config::KeyCode& code) {
 
     const std::string text =
         listening ? std::string("press a key...") : std::string(config::enum_name(code));
-    if (ImGui::Button(text.c_str(), ImVec2(140.0f, 0.0f))) {
+    if (button(text.c_str(), ImVec2(140.0f, 0.0f))) {
         capturing = listening ? 0 : id;
     }
     ImGui::SameLine();
@@ -111,7 +191,7 @@ bool keybind(const char* label, config::KeyCode& code) {
 void text_settings_button(config::TextSlot slot, std::string& open_popup) {
     const config::TextSlotInfo& info = config::text_slots[static_cast<std::size_t>(slot)];
     ImGui::PushID(info.key.data(), info.key.data() + info.key.size());
-    if (ImGui::SmallButton("...")) {
+    if (small_button("...")) {
         open_popup = std::string(info.key);
     }
     if (ImGui::IsItemHovered()) {

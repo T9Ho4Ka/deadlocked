@@ -28,14 +28,14 @@ void config_profiles(AppState& state, const Palette& palette, Color accent, floa
         return;
     }
 
-    if (ImGui::Button("Refresh")) {
+    if (button("Refresh")) {
         state.available_configs = config::available_configs();
     }
 
     ImGui::SetNextItemWidth(160.0f);
     ImGui::InputTextWithHint("##new_config", "new profile", &state.new_config_name);
     ImGui::SameLine();
-    if (ImGui::Button("+") && !state.new_config_name.empty()) {
+    if (button("+") && !state.new_config_name.empty()) {
         std::string name = state.new_config_name;
         if (!name.ends_with(".toml")) {
             name += ".toml";
@@ -61,7 +61,7 @@ void config_profiles(AppState& state, const Palette& palette, Color accent, floa
             to_open = path;
         }
         ImGui::SameLine();
-        if (ImGui::SmallButton("Delete")) {
+        if (small_button("Delete")) {
             to_delete = path;
         }
         ImGui::PopID();
@@ -92,13 +92,13 @@ void appearance_settings(AppState& state) {
     const float scale = theme.text_scale;
 
     if (section("Config", palette, accent, scale)) {
-        if (ImGui::Button("Reset")) {
+        if (button("Reset")) {
             // back to the defaults, without touching the other profiles
             config = config::Config{};
             state.mark_style_changed();
         }
         ImGui::SameLine();
-        if (ImGui::Button("Config Folder")) {
+        if (button("Config Folder")) {
             open_url(("file://" + config::config_dir().string()).c_str());
         }
         ImGui::TextDisabled("%s", state.current_config.filename().c_str());
@@ -182,7 +182,7 @@ void appearance_settings(AppState& state) {
         }
         help("how much of the gradient shows through the panels");
 
-        if (ImGui::Button("Reset To Theme")) {
+        if (button("Reset To Theme")) {
             theme.sync_gradient();
             state.mark_style_changed();
         }
@@ -220,7 +220,7 @@ void appearance_settings(AppState& state) {
         ImGui::Spacing();
         for (const Theme seed :
              {Theme::Midnight, Theme::Mocha, Theme::Nord, Theme::Daylight}) {
-            if (ImGui::Button(theme_name(seed).data())) {
+            if (button(theme_name(seed).data())) {
                 theme.seed_custom(seed);
                 changed = true;
             }
@@ -242,7 +242,7 @@ bool drag_with_reset(const char* label, float& value, float speed, float min, fl
     bool changed = drag_float(label, value, speed, min, max, "%.0f");
     ImGui::SameLine();
     ImGui::PushID(label);
-    if (ImGui::Button("Reset")) {
+    if (button("Reset")) {
         value = fallback;
         changed = true;
     }
@@ -362,7 +362,7 @@ void unsafe_tab(AppState& state) {
             changed |= checkbox("FOV Changer", misc.fov_changer);
             changed |= drag_uint("Desired FOV", misc.desired_fov, 0.1f, 1, 179);
             ImGui::SameLine();
-            if (ImGui::Button("Reset")) {
+            if (button("Reset")) {
                 misc.desired_fov = config::cs2::default_fov;
                 changed = true;
             }
@@ -421,16 +421,16 @@ void radar_tab(AppState& state) {
         const std::string link = "https://radar.avitrano.com/?url=" + config.radar.url +
                                  "&game=" + config.radar_uuid;
         ImGui::BeginDisabled(state.radar_status != net::RadarStatus::Connected);
-        if (ImGui::Button("Open")) {
+        if (button("Open")) {
             open_url(link.c_str());
         }
         ImGui::EndDisabled();
         ImGui::SameLine();
-        if (ImGui::Button("Copy link")) {
+        if (button("Copy link")) {
             ImGui::SetClipboardText(link.c_str());
         }
         ImGui::SameLine();
-        if (ImGui::Button("Reset UUID")) {
+        if (button("Reset UUID")) {
             config.radar_uuid = config::new_uuid();
             changed = true;
         }
@@ -541,7 +541,7 @@ void aimbot_tab(AppState& state) {
         if (selected) {
             ImGui::PushStyleColor(ImGuiCol_Button, accent.vec4());
         }
-        if (ImGui::Button(label)) {
+        if (button(label)) {
             state.aimbot_tab = value;
         }
         if (selected) {

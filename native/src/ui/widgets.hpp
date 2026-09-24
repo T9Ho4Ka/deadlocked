@@ -15,6 +15,18 @@ namespace dl::ui {
 /// interpreted as a command.
 void open_url(const char* url);
 
+/// A button that changes its border and its label with its state, the way the rust client's
+/// do. ImGui only has one border colour and one text colour, so the state is worked out
+/// before the button is drawn and the colours pushed around it.
+bool button(const char* label, const ImVec2& size = ImVec2(0.0f, 0.0f));
+
+/// The same, without the frame padding, for buttons that sit beside another control.
+bool small_button(const char* label);
+
+/// The same, drawn as selected: filled with the accent instead of outlined.
+bool selectable_button(const char* label, bool selected, const ImVec2& size, Color accent,
+                       Color selected_text);
+
 /// Section header, the equivalent of the rust `collapsing_open` helper: open by default and
 /// drawn in the heading color and size so it reads as its own level.
 bool section(const char* title, const Palette& palette, Color accent, float scale);
