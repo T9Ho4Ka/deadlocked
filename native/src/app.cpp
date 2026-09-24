@@ -12,6 +12,7 @@
 #include "ui/sidebar.hpp"
 #include "ui/tabs.hpp"
 #include "ui/theme.hpp"
+#include "ui/widgets.hpp"
 
 namespace dl {
 namespace {
@@ -32,22 +33,31 @@ const char* platform_name(int platform) {
     }
 }
 
-/// The rust client ships the fonts, so reuse them rather than duplicating the assets. Falls
-/// back to the built in font when the directory is not there, e.g. in an installed build.
-void load_font(float size) {
+/// The rust client ships the fonts, so reuse them rather than duplicating the assets. All
+/// of them are loaded once, so switching fonts later is just a PushFont and never an atlas
+/// rebuild. Any that cannot be read fall back to the built in font.
+void load_fonts(std::array<ImFont*, config::font_count>& fonts, float size) {
     ImGuiIO& io = ImGui::GetIO();
+    ImFont* fallback = io.Fonts->AddFontDefault();
+
+    for (std::size_t i = 0; i < config::font_count; ++i) {
+        fonts[i] = fallback;
 #ifdef DL_ASSETS_DIR
-    const std::filesystem::path font = std::filesystem::path(DL_ASSETS_DIR) / "FiraSans.ttf";
-    std::error_code error;
-    if (std::filesystem::exists(font, error) && io.Fonts->AddFontFromFileTTF(font.c_str(), size) != nullptr) {
-        return;
-    }
-    std::fprintf(stderr, "font %s not loaded, falling back to the built in font\n",
-                 font.c_str());
+        const std::filesystem::path path =
+            std::filesystem::path(DL_ASSETS_DIR) / std::string(config::font_files[i]);
+        std::error_code error;
+        if (!std::filesystem::exists(path, error)) {
+            std::fprintf(stderr, "font %s missing, using the built in one\n", path.c_str());
+            continue;
+        }
+        if (ImFont* loaded = io.Fonts->AddFontFromFileTTF(path.c_str(), size);
+            loaded != nullptr) {
+            fonts[i] = loaded;
+        }
 #else
-    (void)size;
+        (void)size;
 #endif
-    io.Fonts->AddFontDefault();
+    }
 }
 
 }  // namespace
@@ -104,7 +114,7 @@ bool App::init() {
 
     state_.config = config::load();
     std::fprintf(stderr, "config: %s\n", config::config_path().c_str());
-    load_font(ui::body_size * state_.config.theme.text_scale);
+    load_fonts(state_.fonts, ui::body_size * state_.config.theme.text_scale);
     ui::apply(state_.config.theme, state_.config.accent_color);
 
     ImGui_ImplGlfw_InitForOpenGL(window_, true);
@@ -165,6 +175,8 @@ void App::frame() {
         ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    // 0.0f keeps the size the style already resolved, only the typeface changes
+    ImGui::PushFont(state_.fonts[static_cast<std::size_t>(state_.config.font)], 0.0f);
     if (ImGui::Begin("##root", nullptr, flags)) {
         ui::draw_sidebar(state_);
         ImGui::SameLine();
@@ -174,6 +186,12 @@ void App::frame() {
         ImGui::EndChild();
     }
     ImGui::End();
+
+    if (ui::text_settings_popup(state_.config.hud.overlay_text, state_.text_popup)) {
+        state_.config_dirty = true;
+    }
+
+    ImGui::PopFont();
     ImGui::PopStyleVar();
 }
 

@@ -7,6 +7,7 @@
 #include "config/config.hpp"
 
 struct GLFWwindow;
+struct ImFont;
 
 namespace dl {
 
@@ -43,6 +44,10 @@ struct AppState {
     bool style_dirty = false;
     /// set by any control that changes the config, triggers a save
     bool config_dirty = false;
+    /// key of the text settings popup that is open, empty when none is
+    std::string text_popup;
+    /// one entry per config::Font, all loaded up front so switching needs no atlas rebuild
+    std::array<ImFont*, config::font_count> fonts{};
 
     void mark_style_changed() {
         style_dirty = true;

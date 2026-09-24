@@ -100,6 +100,16 @@ E read_enum(const toml::node_view<const toml::node>& node, E fallback) {
     return enum_from_key(node.value_or(std::string_view{}), fallback);
 }
 
+toml::table text_category_to_toml(const TextCategory& category) {
+    return toml::table{
+        {"font_size", category.font_size},
+        {"color", to_toml(category.color)},
+        {"use_player_color", category.use_player_color},
+        {"position", std::string(enum_key(category.position))},
+        {"align", std::string(enum_key(category.align))},
+    };
+}
+
 template <typename E>
 std::string write_enum(E value) {
     return std::string(enum_key(value));
@@ -202,6 +212,51 @@ Config load() {
     s.fadeout_duration = sound["fadeout_duration"].value_or(s.fadeout_duration);
     s.show_visible = sound["show_visible"].value_or(s.show_visible);
 
+    const toml::node_view<const toml::node> hud = table["hud"];
+    HudConfig& h = config.hud;
+    h.bomb_timer = hud["bomb_timer"].value_or(h.bomb_timer);
+    h.fov_circle = hud["fov_circle"].value_or(h.fov_circle);
+    h.dropped_weapons = hud["dropped_weapons"].value_or(h.dropped_weapons);
+    h.keybind_list = hud["keybind_list"].value_or(h.keybind_list);
+    h.spectator_list = hud["spectator_list"].value_or(h.spectator_list);
+    h.text_outline = hud["text_outline"].value_or(h.text_outline);
+    h.line_width = hud["line_width"].value_or(h.line_width);
+    h.debug = hud["debug"].value_or(h.debug);
+
+    const toml::node_view<const toml::node> crosshair = hud["sniper_crosshair"];
+    CrosshairConfig& c = h.sniper_crosshair;
+    c.enabled = crosshair["enabled"].value_or(c.enabled);
+    c.color = color_from(crosshair["color"], c.color);
+    c.line_length = crosshair["line_length"].value_or(c.line_length);
+    c.line_width = crosshair["line_width"].value_or(c.line_width);
+    c.gap = crosshair["gap"].value_or(c.gap);
+
+    const toml::node_view<const toml::node> trails = hud["grenade_trails"];
+    TrailConfig& t = h.grenade_trails;
+    t.enabled = trails["enabled"].value_or(t.enabled);
+    t.inferno_poly = trails["inferno_poly"].value_or(t.inferno_poly);
+    t.smoke = color_from(trails["smoke"], t.smoke);
+    t.molotov = color_from(trails["molotov"], t.molotov);
+    t.incendiary = color_from(trails["incendiary"], t.incendiary);
+    t.flash = color_from(trails["flash"], t.flash);
+    t.he = color_from(trails["he"], t.he);
+    t.decoy = color_from(trails["decoy"], t.decoy);
+
+    const toml::node_view<const toml::node> text = hud["overlay_text"];
+    for (std::size_t i = 0; i < text_slot_count; ++i) {
+        TextCategory& category = h.overlay_text.categories[i];
+        const toml::node_view<const toml::node> entry = text[text_slots[i].key];
+        category.font_size = entry["font_size"].value_or(category.font_size);
+        category.color = color_from(entry["color"], category.color);
+        category.use_player_color =
+            entry["use_player_color"].value_or(category.use_player_color);
+        category.position = read_enum(entry["position"], category.position);
+        category.align = read_enum(entry["align"], category.align);
+    }
+
+    config.font = read_enum(table["font"], config.font);
+    config.fps = table["fps"].value_or(config.fps);
+
     const toml::node_view<const toml::node> misc = table["misc"];
     UnsafeConfig& m = config.misc;
     m.no_flash = misc["no_flash"].value_or(m.no_flash);
@@ -288,6 +343,42 @@ bool save(const Config& config) {
                   }},
     };
 
+    const HudConfig& h = config.hud;
+    toml::table text_table;
+    for (std::size_t i = 0; i < text_slot_count; ++i) {
+        text_table.insert(text_slots[i].key,
+                          text_category_to_toml(h.overlay_text.categories[i]));
+    }
+
+    toml::table hud_table{
+        {"bomb_timer", h.bomb_timer},
+        {"fov_circle", h.fov_circle},
+        {"dropped_weapons", h.dropped_weapons},
+        {"keybind_list", h.keybind_list},
+        {"spectator_list", h.spectator_list},
+        {"text_outline", h.text_outline},
+        {"line_width", h.line_width},
+        {"debug", h.debug},
+        {"sniper_crosshair", toml::table{
+                                 {"enabled", h.sniper_crosshair.enabled},
+                                 {"color", to_toml(h.sniper_crosshair.color)},
+                                 {"line_length", h.sniper_crosshair.line_length},
+                                 {"line_width", h.sniper_crosshair.line_width},
+                                 {"gap", h.sniper_crosshair.gap},
+                             }},
+        {"grenade_trails", toml::table{
+                               {"enabled", h.grenade_trails.enabled},
+                               {"inferno_poly", h.grenade_trails.inferno_poly},
+                               {"smoke", to_toml(h.grenade_trails.smoke)},
+                               {"molotov", to_toml(h.grenade_trails.molotov)},
+                               {"incendiary", to_toml(h.grenade_trails.incendiary)},
+                               {"flash", to_toml(h.grenade_trails.flash)},
+                               {"he", to_toml(h.grenade_trails.he)},
+                               {"decoy", to_toml(h.grenade_trails.decoy)},
+                           }},
+        {"overlay_text", std::move(text_table)},
+    };
+
     const UnsafeConfig& m = config.misc;
     toml::table misc_table{
         {"no_flash", m.no_flash},
@@ -308,7 +399,10 @@ bool save(const Config& config) {
         {"accent_color", to_toml(config.accent_color)},
         {"radar_uuid", config.radar_uuid},
         {"theme", std::move(theme_table)},
+        {"font", write_enum(config.font)},
+        {"fps", static_cast<std::int64_t>(config.fps)},
         {"player", std::move(player_table)},
+        {"hud", std::move(hud_table)},
         {"misc", std::move(misc_table)},
         {"radar", std::move(radar_table)},
     };

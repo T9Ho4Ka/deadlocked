@@ -5,6 +5,7 @@
 
 #include "config/enums.hpp"
 #include "config/keycode.hpp"
+#include "config/text.hpp"
 #include "ui/theme.hpp"
 
 namespace dl::config {
@@ -120,6 +121,39 @@ struct UnsafeConfig {
     bool no_smoke = false;
     bool change_smoke_color = false;
     Color smoke_color = Color(255, 0, 0);
+};
+
+struct CrosshairConfig {
+    bool enabled = true;
+    Color color = Color(255, 255, 255);
+    float line_length = 50.0f;
+    float line_width = 2.0f;
+    float gap = 20.0f;
+};
+
+struct TrailConfig {
+    bool enabled = true;
+    bool inferno_poly = true;
+    Color smoke = Color(220, 220, 220);
+    Color molotov = Color(255, 0, 0);
+    Color incendiary = Color(255, 165, 0);
+    Color flash = Color(255, 255, 255);
+    Color he = Color(96, 96, 96);
+    Color decoy = Color(128, 0, 128);
+};
+
+struct HudConfig {
+    bool bomb_timer = true;
+    bool fov_circle = false;
+    CrosshairConfig sniper_crosshair;
+    bool dropped_weapons = true;
+    bool keybind_list = false;
+    bool spectator_list = false;
+    TrailConfig grenade_trails;
+    bool text_outline = true;
+    float line_width = 2.0f;
+    bool debug = false;
+    OverlayTextConfig overlay_text;
 };
 
 struct RadarConfig {

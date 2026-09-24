@@ -6,6 +6,7 @@
 
 #include "config/enums.hpp"
 #include "config/keycode.hpp"
+#include "config/text.hpp"
 #include "ui/theme.hpp"
 
 namespace dl::ui {
@@ -31,6 +32,12 @@ bool color_picker(const char* label, Color& color);
 
 /// Click to arm, then press any key or mouse button to bind it. Escape clears the binding.
 bool keybind(const char* label, config::KeyCode& code);
+
+/// Gear button that opens the text settings popup for one overlay text slot.
+void text_settings_button(config::TextSlot slot, std::string& open_popup);
+
+/// Draws whichever text settings popup is open. Returns true when something changed.
+bool text_settings_popup(config::OverlayTextConfig& text, std::string& open_popup);
 
 /// Combo box over any config enum that provides an entry table.
 template <typename E>

@@ -108,4 +108,52 @@ bool keybind(const char* label, config::KeyCode& code) {
     return true;
 }
 
+void text_settings_button(config::TextSlot slot, std::string& open_popup) {
+    const config::TextSlotInfo& info = config::text_slots[static_cast<std::size_t>(slot)];
+    ImGui::PushID(info.key.data(), info.key.data() + info.key.size());
+    if (ImGui::SmallButton("...")) {
+        open_popup = std::string(info.key);
+    }
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("Text settings");
+    }
+    ImGui::PopID();
+}
+
+bool text_settings_popup(config::OverlayTextConfig& text, std::string& open_popup) {
+    if (open_popup.empty()) {
+        return false;
+    }
+
+    const auto match = std::ranges::find_if(
+        config::text_slots, [&](const auto& info) { return info.key == open_popup; });
+    if (match == config::text_slots.end()) {
+        open_popup.clear();
+        return false;
+    }
+
+    config::TextCategory& category = text[match->slot];
+    const std::string title(match->label);
+
+    bool open = true;
+    bool changed = false;
+    ImGui::SetNextWindowSize(ImVec2(300.0f, 0.0f), ImGuiCond_Appearing);
+    if (ImGui::Begin(title.c_str(), &open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
+        changed |= drag_float("Font Size", category.font_size, 0.2f, 1.0f, 99.0f, "%.1f");
+        changed |= color_picker("Color", category.color);
+        if (match->player_color) {
+            changed |= checkbox("Use Player Color", category.use_player_color);
+        }
+        ImGui::Separator();
+        changed |= enum_combo("Position", category.position);
+        changed |= enum_combo("Align", category.align);
+    }
+    ImGui::End();
+
+    if (!open) {
+        open_popup.clear();
+    }
+    return changed;
+}
+
 }  // namespace dl::ui

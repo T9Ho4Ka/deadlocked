@@ -209,9 +209,20 @@ void player_tab(AppState& state) {
             changed |= checkbox("Health Bar", player.health_bar);
             changed |= checkbox("Armor Bar", player.armor_bar);
             changed |= checkbox("Player Name", player.player_name);
+            ImGui::SameLine();
+            text_settings_button(config::TextSlot::PlayerName, state.text_popup);
+
             changed |= checkbox("Weapon Icon", player.weapon_icon);
+            ImGui::SameLine();
+            text_settings_button(config::TextSlot::WeaponIcon, state.text_popup);
+
+            ImGui::TextUnformatted("Ammo");
+            ImGui::SameLine();
+            text_settings_button(config::TextSlot::AmmoText, state.text_popup);
+
             changed |= checkbox("Show Tags", player.tags);
-            ImGui::TextDisabled("per text styling arrives with the text config");
+            ImGui::SameLine();
+            text_settings_button(config::TextSlot::PlayerTags, state.text_popup);
         }
 
         if (section("Sound ESP", palette, accent, scale)) {
@@ -340,6 +351,90 @@ void radar_tab(AppState& state) {
     }
 }
 
+
+void hud_tab(AppState& state) {
+    config::HudConfig& hud = state.config.hud;
+    const Palette palette = state.config.theme.palette();
+    const Color accent = state.config.accent_color;
+    const float scale = state.config.theme.text_scale;
+    bool changed = false;
+
+    // checkbox with the gear that opens that text's settings popup, the pattern the rust
+    // hud tab uses for every piece of text the overlay draws
+    const auto row = [&](const char* label, bool* value, config::TextSlot slot) {
+        if (value != nullptr) {
+            changed |= checkbox(label, *value);
+        } else {
+            ImGui::TextUnformatted(label);
+        }
+        ImGui::SameLine();
+        text_settings_button(slot, state.text_popup);
+    };
+
+    if (ImGui::BeginTable("##hud_columns", 2)) {
+        ImGui::TableNextColumn();
+        ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
+
+        if (section("HUD", palette, accent, scale)) {
+            row("Bomb Timer", &hud.bomb_timer, config::TextSlot::BombTimer);
+            changed |= checkbox("FOV Circle", hud.fov_circle);
+            row("Dropped Weapons", &hud.dropped_weapons, config::TextSlot::WeaponName);
+            row("Keybind List", &hud.keybind_list, config::TextSlot::KeybindList);
+            row("Spectator List", &hud.spectator_list, config::TextSlot::SpectatorList);
+        }
+
+        if (section("Sniper Crosshair", palette, accent, scale)) {
+            config::CrosshairConfig& crosshair = hud.sniper_crosshair;
+            changed |= checkbox("Enabled", crosshair.enabled);
+            changed |= drag_float("Line Length", crosshair.line_length, 0.2f, 0.1f, 500.0f, "%.1f");
+            changed |= drag_float("Line Width", crosshair.line_width, 0.005f, 0.1f, 10.0f, "%.1f");
+            changed |= drag_float("Gap", crosshair.gap, 0.2f, 0.0f, 200.0f, "%.1f");
+        }
+        ImGui::PopItemWidth();
+
+        ImGui::TableNextColumn();
+        ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
+
+        if (section("Appearance", palette, accent, scale)) {
+            changed |= checkbox("Text Outline", hud.text_outline);
+            changed |= drag_float("Line Width", hud.line_width, 0.02f, 0.1f, 8.0f, "%.1f");
+            changed |= enum_combo("Font", state.config.font);
+
+            ImGui::Separator();
+            row("Status Text", nullptr, config::TextSlot::StatusText);
+            row("Grenade Name", nullptr, config::TextSlot::GrenadeName);
+            row("Grenade Lineup", nullptr, config::TextSlot::GrenadeLineup);
+        }
+
+        if (section("Advanced", palette, accent, scale)) {
+            changed |= checkbox("Debug Overlay", hud.debug);
+            changed |= drag_uint("FPS", state.config.fps, 1.0f, 30, 500);
+        }
+        ImGui::PopItemWidth();
+        ImGui::EndTable();
+    }
+
+    if (section("Colors", palette, accent, scale)) {
+        changed |= color_picker("Crosshair Color", hud.sniper_crosshair.color);
+    }
+
+    if (section("Grenade Trails", palette, accent, scale)) {
+        config::TrailConfig& trails = hud.grenade_trails;
+        changed |= checkbox("Enable Grenade Trails", trails.enabled);
+        changed |= checkbox("Inferno Polygon", trails.inferno_poly);
+        changed |= color_picker("Smoke", trails.smoke);
+        changed |= color_picker("Molotov", trails.molotov);
+        changed |= color_picker("Incendiary", trails.incendiary);
+        changed |= color_picker("Flash", trails.flash);
+        changed |= color_picker("HE Grenade", trails.he);
+        changed |= color_picker("Decoy", trails.decoy);
+    }
+
+    if (changed) {
+        state.config_dirty = true;
+    }
+}
+
 /// Tabs whose settings live in the cs2 layer, which is not ported yet.
 void placeholder(const char* name, const Palette& palette, Color accent, float scale) {
     ImGui::PushFont(nullptr, heading_size * scale);
@@ -361,10 +456,10 @@ void draw_tab(AppState& state) {
     switch (state.tab) {
         case Tab::Config: appearance_tab(state); break;
         case Tab::Player: player_tab(state); break;
+        case Tab::Hud: hud_tab(state); break;
         case Tab::Unsafe: unsafe_tab(state); break;
         case Tab::Radar: radar_tab(state); break;
         case Tab::Aimbot: placeholder("Aimbot", palette, accent, scale); break;
-        case Tab::Hud: placeholder("Hud", palette, accent, scale); break;
         case Tab::Grenades: placeholder("Grenades", palette, accent, scale); break;
         case Tab::Application: placeholder("Application", palette, accent, scale); break;
     }

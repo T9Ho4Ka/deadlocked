@@ -5,6 +5,7 @@
 #include <string_view>
 #include <utility>
 
+#include "config/font.hpp"
 #include "config/game.hpp"
 #include "ui/theme.hpp"
 
@@ -29,8 +30,11 @@ struct Config {
     Color accent_color = Color(100, 150, 240);
     ui::ThemeConfig theme;
     PlayerConfig player;
+    HudConfig hud;
     UnsafeConfig misc;
     RadarConfig radar;
+    Font font = Font::FiraSans;
+    unsigned fps = 120;
     /// the rust client keeps this in its application config, it moves there once that is ported
     std::string radar_uuid;
 };
