@@ -435,6 +435,148 @@ void hud_tab(AppState& state) {
     }
 }
 
+
+void aimbot_tab(AppState& state) {
+    const Palette palette = state.config.theme.palette();
+    const Color accent = state.config.accent_color;
+    const float scale = state.config.theme.text_scale;
+    const bool per_weapon = state.aimbot_tab == AimbotTab::Weapon;
+    bool changed = false;
+
+    const auto sub_tab = [&](const char* label, AimbotTab value) {
+        const bool selected = state.aimbot_tab == value;
+        if (selected) {
+            ImGui::PushStyleColor(ImGuiCol_Button, accent.vec4());
+        }
+        if (ImGui::Button(label)) {
+            state.aimbot_tab = value;
+        }
+        if (selected) {
+            ImGui::PopStyleColor();
+        }
+    };
+
+    sub_tab("Global", AimbotTab::Global);
+    ImGui::SameLine();
+    sub_tab("Weapon", AimbotTab::Weapon);
+    if (per_weapon) {
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(220.0f);
+        enum_combo("Weapon", state.aimbot_weapon);
+    }
+    ImGui::Separator();
+
+    config::WeaponConfig& weapon = state.weapon_config();
+
+    if (ImGui::BeginTable("##aimbot_columns", 2)) {
+        ImGui::TableNextColumn();
+        ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.5f);
+
+        config::AimbotConfig& aimbot = weapon.aimbot;
+        if (section("Aimbot", palette, accent, scale)) {
+            changed |= keybind("Hotkey", state.config.aim.aimbot_hotkey);
+            if (per_weapon) {
+                changed |= checkbox("Enable Override", aimbot.enable_override,
+                                    "Enable aimbot settings override for a specific weapon");
+            }
+            changed |= checkbox("Enable Aimbot", aimbot.enabled);
+            changed |= enum_combo("Mode", aimbot.mode);
+        }
+
+        if (section("Targeting", palette, accent, scale)) {
+            changed |= checkbox("Target Friendlies", aimbot.target_friendlies);
+            changed |= checkbox("Distance-Adjusted FOV", aimbot.distance_adjusted_fov,
+                                "Adjusts FOV based on target distance");
+            changed |= drag_float("FOV", aimbot.fov, 0.02f, 0.1f, 360.0f, "%.1f°");
+            changed |= drag_float("Smooth", aimbot.smooth, 0.02f, 0.0f, 20.0f, "%.1f");
+            changed |= drag_float("Inertia", aimbot.inertia, 0.005f, 0.0f, 1.0f, "%.2f");
+            changed |= drag_float("Prediction", aimbot.prediction_time, 0.002f, 0.0f, 0.25f,
+                                  "%.2f s");
+            changed |= ImGui::DragInt("Start Bullet", &aimbot.start_bullet, 0.05f, 0, 10, "%d",
+                                      ImGuiSliderFlags_AlwaysClamp);
+            changed |= enum_combo("Targeting Mode", aimbot.targeting_mode);
+        }
+
+        if (section("Checks", palette, accent, scale)) {
+            changed |= checkbox("Visibility Check", aimbot.visibility_check);
+            changed |= checkbox("Flash Check", aimbot.flash_check);
+        }
+
+        if (section("Bones", palette, accent, scale)) {
+            for (const auto& entry : config::bone_entries) {
+                const auto found = std::ranges::find(aimbot.bones, entry.value);
+                const bool selected = found != aimbot.bones.end();
+                const std::string label(entry.name);
+                if (ImGui::Selectable(label.c_str(), selected)) {
+                    if (selected) {
+                        aimbot.bones.erase(found);
+                    } else {
+                        aimbot.bones.push_back(entry.value);
+                    }
+                    changed = true;
+                }
+            }
+        }
+        ImGui::PopItemWidth();
+
+        ImGui::TableNextColumn();
+        ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.5f);
+
+        config::TriggerbotConfig& trigger = weapon.triggerbot;
+        if (section("Triggerbot", palette, accent, scale)) {
+            if (per_weapon) {
+                changed |= checkbox("Enable Override##trigger", trigger.enable_override);
+            }
+            changed |= checkbox("Enable Triggerbot", trigger.enabled);
+            changed |= keybind("Hotkey##trigger", state.config.aim.triggerbot_hotkey);
+
+            int delay[2]{static_cast<int>(trigger.delay.start),
+                         static_cast<int>(trigger.delay.end)};
+            if (ImGui::DragInt2("Delay (ms)", delay, 1.0f, 0, 999, "%d",
+                                ImGuiSliderFlags_AlwaysClamp)) {
+                // keep the range ordered whichever handle the user dragged past the other
+                trigger.delay.start = static_cast<std::uint64_t>(std::min(delay[0], delay[1]));
+                trigger.delay.end = static_cast<std::uint64_t>(std::max(delay[0], delay[1]));
+                changed = true;
+            }
+
+            changed |= enum_combo("Mode##trigger", trigger.mode);
+            changed |= checkbox("Head Only", trigger.head_only);
+
+            int duration = static_cast<int>(trigger.shot_duration);
+            if (ImGui::DragInt("Hold Duration (ms)", &duration, 10.0f, 0, 2000, "%d",
+                               ImGuiSliderFlags_AlwaysClamp)) {
+                trigger.shot_duration = static_cast<std::uint64_t>(duration);
+                changed = true;
+            }
+        }
+
+        if (section("Checks##trigger", palette, accent, scale)) {
+            changed |= checkbox("Flash Check##trigger", trigger.flash_check);
+            changed |= checkbox("Scope Check", trigger.scope_check);
+            changed |= checkbox("Velocity Check", trigger.velocity_check,
+                                "Only shoot if the player moves slower than the threshold");
+            changed |= drag_float("Velocity Threshold", trigger.velocity_threshold, 1.0f, 0.0f,
+                                  5000.0f, "%.0f");
+        }
+
+        if (section("RCS", palette, accent, scale)) {
+            if (per_weapon) {
+                changed |= checkbox("Enable Override##rcs", weapon.rcs.enable_override);
+            }
+            changed |= checkbox("Enable RCS", weapon.rcs.enabled);
+            changed |= drag_float("Strength X", weapon.rcs.strength.x, 0.01f, 0.0f, 1.0f);
+            changed |= drag_float("Strength Y", weapon.rcs.strength.y, 0.01f, 0.0f, 1.0f);
+        }
+        ImGui::PopItemWidth();
+        ImGui::EndTable();
+    }
+
+    if (changed) {
+        state.config_dirty = true;
+    }
+}
+
 /// Tabs whose settings live in the cs2 layer, which is not ported yet.
 void placeholder(const char* name, const Palette& palette, Color accent, float scale) {
     ImGui::PushFont(nullptr, heading_size * scale);
@@ -455,11 +597,11 @@ void draw_tab(AppState& state) {
 
     switch (state.tab) {
         case Tab::Config: appearance_tab(state); break;
+        case Tab::Aimbot: aimbot_tab(state); break;
         case Tab::Player: player_tab(state); break;
         case Tab::Hud: hud_tab(state); break;
         case Tab::Unsafe: unsafe_tab(state); break;
         case Tab::Radar: radar_tab(state); break;
-        case Tab::Aimbot: placeholder("Aimbot", palette, accent, scale); break;
         case Tab::Grenades: placeholder("Grenades", palette, accent, scale); break;
         case Tab::Application: placeholder("Application", palette, accent, scale); break;
     }

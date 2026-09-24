@@ -33,6 +33,9 @@ inline constexpr std::array<std::pair<Tab, std::string_view>, 8> tabs{{
     {Tab::Application, "Application"},
 }};
 
+/// the aimbot tab edits either the shared settings or one weapon's override
+enum class AimbotTab : int { Global, Weapon };
+
 inline constexpr float sidebar_width = 176.0f;
 
 /// Everything the ui draws from. The game side of this, status and frame times included,
@@ -40,6 +43,8 @@ inline constexpr float sidebar_width = 176.0f;
 struct AppState {
     config::Config config;
     Tab tab = Tab::Aimbot;
+    AimbotTab aimbot_tab = AimbotTab::Global;
+    config::Weapon aimbot_weapon = config::Weapon::AK47;
     /// set by any control that changes the theme, consumed once per frame
     bool style_dirty = false;
     /// set by any control that changes the config, triggers a save
@@ -48,6 +53,11 @@ struct AppState {
     std::string text_popup;
     /// one entry per config::Font, all loaded up front so switching needs no atlas rebuild
     std::array<ImFont*, config::font_count> fonts{};
+
+    /// the weapon block the aimbot tab is currently editing
+    config::WeaponConfig& weapon_config() {
+        return aimbot_tab == AimbotTab::Weapon ? config.aim[aimbot_weapon] : config.aim.global;
+    }
 
     void mark_style_changed() {
         style_dirty = true;

@@ -100,6 +100,118 @@ E read_enum(const toml::node_view<const toml::node>& node, E fallback) {
     return enum_from_key(node.value_or(std::string_view{}), fallback);
 }
 
+toml::table weapon_config_to_toml(const WeaponConfig& weapon) {
+    const AimbotConfig& aimbot = weapon.aimbot;
+    toml::array bones;
+    for (const Bones bone : aimbot.bones) {
+        bones.push_back(std::string(enum_key(bone)));
+    }
+
+    return toml::table{
+        {"aimbot", toml::table{
+                       {"enable_override", aimbot.enable_override},
+                       {"enabled", aimbot.enabled},
+                       {"mode", std::string(enum_key(aimbot.mode))},
+                       {"target_friendlies", aimbot.target_friendlies},
+                       {"distance_adjusted_fov", aimbot.distance_adjusted_fov},
+                       {"start_bullet", static_cast<std::int64_t>(aimbot.start_bullet)},
+                       {"visibility_check", aimbot.visibility_check},
+                       {"flash_check", aimbot.flash_check},
+                       {"fov", aimbot.fov},
+                       {"smooth", aimbot.smooth},
+                       {"inertia", aimbot.inertia},
+                       {"prediction_time", aimbot.prediction_time},
+                       {"bones", std::move(bones)},
+                       {"targeting_mode", std::string(enum_key(aimbot.targeting_mode))},
+                   }},
+        {"rcs", toml::table{
+                    {"enable_override", weapon.rcs.enable_override},
+                    {"enabled", weapon.rcs.enabled},
+                    {"strength", toml::array{weapon.rcs.strength.x, weapon.rcs.strength.y}},
+                }},
+        {"triggerbot",
+         toml::table{
+             {"enable_override", weapon.triggerbot.enable_override},
+             {"enabled", weapon.triggerbot.enabled},
+             {"delay", toml::array{static_cast<std::int64_t>(weapon.triggerbot.delay.start),
+                                   static_cast<std::int64_t>(weapon.triggerbot.delay.end)}},
+             {"shot_duration", static_cast<std::int64_t>(weapon.triggerbot.shot_duration)},
+             {"mode", std::string(enum_key(weapon.triggerbot.mode))},
+             {"flash_check", weapon.triggerbot.flash_check},
+             {"scope_check", weapon.triggerbot.scope_check},
+             {"velocity_check", weapon.triggerbot.velocity_check},
+             {"velocity_threshold", weapon.triggerbot.velocity_threshold},
+             {"head_only", weapon.triggerbot.head_only},
+         }},
+    };
+}
+
+void weapon_config_from_toml(const toml::node_view<const toml::node>& node,
+                             WeaponConfig& weapon) {
+    const toml::node_view<const toml::node> aimbot_node = node["aimbot"];
+    AimbotConfig& aimbot = weapon.aimbot;
+    aimbot.enable_override = aimbot_node["enable_override"].value_or(aimbot.enable_override);
+    aimbot.enabled = aimbot_node["enabled"].value_or(aimbot.enabled);
+    aimbot.mode = enum_from_key(aimbot_node["mode"].value_or(std::string_view{}), aimbot.mode);
+    aimbot.target_friendlies =
+        aimbot_node["target_friendlies"].value_or(aimbot.target_friendlies);
+    aimbot.distance_adjusted_fov =
+        aimbot_node["distance_adjusted_fov"].value_or(aimbot.distance_adjusted_fov);
+    aimbot.start_bullet = aimbot_node["start_bullet"].value_or(aimbot.start_bullet);
+    aimbot.visibility_check = aimbot_node["visibility_check"].value_or(aimbot.visibility_check);
+    aimbot.flash_check = aimbot_node["flash_check"].value_or(aimbot.flash_check);
+    aimbot.fov = aimbot_node["fov"].value_or(aimbot.fov);
+    aimbot.smooth = aimbot_node["smooth"].value_or(aimbot.smooth);
+    aimbot.inertia = aimbot_node["inertia"].value_or(aimbot.inertia);
+    aimbot.prediction_time = aimbot_node["prediction_time"].value_or(aimbot.prediction_time);
+    aimbot.targeting_mode = enum_from_key(
+        aimbot_node["targeting_mode"].value_or(std::string_view{}), aimbot.targeting_mode);
+
+    if (const toml::array* bones = aimbot_node["bones"].as_array(); bones != nullptr) {
+        // an explicitly empty list means the user aims at nothing, so it is honoured as is
+        aimbot.bones.clear();
+        for (const toml::node& entry : *bones) {
+            const std::optional<std::string_view> key = entry.value<std::string_view>();
+            if (!key.has_value()) {
+                continue;
+            }
+            const Bones bone = enum_from_key(*key, Bones::Head);
+            if (enum_key(bone) == *key) {
+                aimbot.bones.push_back(bone);
+            }
+        }
+    }
+
+    const toml::node_view<const toml::node> rcs_node = node["rcs"];
+    weapon.rcs.enable_override =
+        rcs_node["enable_override"].value_or(weapon.rcs.enable_override);
+    weapon.rcs.enabled = rcs_node["enabled"].value_or(weapon.rcs.enabled);
+    if (const toml::array* strength = rcs_node["strength"].as_array();
+        strength != nullptr && strength->size() >= 2) {
+        weapon.rcs.strength.x = strength->get(0)->value_or(weapon.rcs.strength.x);
+        weapon.rcs.strength.y = strength->get(1)->value_or(weapon.rcs.strength.y);
+    }
+
+    const toml::node_view<const toml::node> trigger_node = node["triggerbot"];
+    TriggerbotConfig& trigger = weapon.triggerbot;
+    trigger.enable_override =
+        trigger_node["enable_override"].value_or(trigger.enable_override);
+    trigger.enabled = trigger_node["enabled"].value_or(trigger.enabled);
+    if (const toml::array* delay = trigger_node["delay"].as_array();
+        delay != nullptr && delay->size() >= 2) {
+        trigger.delay.start = delay->get(0)->value_or(trigger.delay.start);
+        trigger.delay.end = delay->get(1)->value_or(trigger.delay.end);
+    }
+    trigger.shot_duration = trigger_node["shot_duration"].value_or(trigger.shot_duration);
+    trigger.mode = enum_from_key(trigger_node["mode"].value_or(std::string_view{}), trigger.mode);
+    trigger.flash_check = trigger_node["flash_check"].value_or(trigger.flash_check);
+    trigger.scope_check = trigger_node["scope_check"].value_or(trigger.scope_check);
+    trigger.velocity_check = trigger_node["velocity_check"].value_or(trigger.velocity_check);
+    trigger.velocity_threshold =
+        trigger_node["velocity_threshold"].value_or(trigger.velocity_threshold);
+    trigger.head_only = trigger_node["head_only"].value_or(trigger.head_only);
+}
+
 toml::table text_category_to_toml(const TextCategory& category) {
     return toml::table{
         {"font_size", category.font_size},
@@ -211,6 +323,18 @@ Config load() {
     s.fadeout_start = sound["fadeout_start"].value_or(s.fadeout_start);
     s.fadeout_duration = sound["fadeout_duration"].value_or(s.fadeout_duration);
     s.show_visible = sound["show_visible"].value_or(s.show_visible);
+
+    const toml::node_view<const toml::node> aim = table["aim"];
+    config.aim.aimbot_hotkey = read_enum(aim["aimbot_hotkey"], config.aim.aimbot_hotkey);
+    config.aim.triggerbot_hotkey =
+        read_enum(aim["triggerbot_hotkey"], config.aim.triggerbot_hotkey);
+    weapon_config_from_toml(aim["global"], config.aim.global);
+
+    const toml::node_view<const toml::node> weapons = aim["weapons"];
+    for (std::size_t i = 0; i < weapon_count; ++i) {
+        // a weapon left at its defaults is not written out, so a missing entry is not an error
+        weapon_config_from_toml(weapons[weapon_entries[i].key], config.aim.weapons[i]);
+    }
 
     const toml::node_view<const toml::node> hud = table["hud"];
     HudConfig& h = config.hud;
@@ -343,6 +467,25 @@ bool save(const Config& config) {
                   }},
     };
 
+    // only weapons that actually differ from the defaults are written, otherwise every
+    // config file would carry 67 near identical blocks
+    toml::table weapons_table;
+    const WeaponConfig default_weapon;
+    for (std::size_t i = 0; i < weapon_count; ++i) {
+        if (config.aim.weapons[i] == default_weapon) {
+            continue;
+        }
+        weapons_table.insert(weapon_entries[i].key,
+                             weapon_config_to_toml(config.aim.weapons[i]));
+    }
+
+    toml::table aim_table{
+        {"aimbot_hotkey", write_enum(config.aim.aimbot_hotkey)},
+        {"triggerbot_hotkey", write_enum(config.aim.triggerbot_hotkey)},
+        {"global", weapon_config_to_toml(config.aim.global)},
+        {"weapons", std::move(weapons_table)},
+    };
+
     const HudConfig& h = config.hud;
     toml::table text_table;
     for (std::size_t i = 0; i < text_slot_count; ++i) {
@@ -401,6 +544,7 @@ bool save(const Config& config) {
         {"theme", std::move(theme_table)},
         {"font", write_enum(config.font)},
         {"fps", static_cast<std::int64_t>(config.fps)},
+        {"aim", std::move(aim_table)},
         {"player", std::move(player_table)},
         {"hud", std::move(hud_table)},
         {"misc", std::move(misc_table)},

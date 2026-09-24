@@ -5,6 +5,7 @@
 #include <string_view>
 #include <utility>
 
+#include "config/aim.hpp"
 #include "config/font.hpp"
 #include "config/game.hpp"
 #include "ui/theme.hpp"
@@ -29,6 +30,7 @@ inline constexpr std::array<std::pair<std::string_view, Color>, 7> accent_colors
 struct Config {
     Color accent_color = Color(100, 150, 240);
     ui::ThemeConfig theme;
+    AimConfig aim;
     PlayerConfig player;
     HudConfig hud;
     UnsafeConfig misc;
