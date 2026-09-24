@@ -212,17 +212,77 @@ void Window::begin_frame() {
     ImGui::NewFrame();
 }
 
-void Window::end_frame() {
-    ImGui::Render();
+void Window::clear() {
+    glfwMakeContextCurrent(window_);
     int width = 0;
     int height = 0;
     glfwGetFramebufferSize(window_, &width, &height);
     glViewport(0, 0, width, height);
     // fully transparent, so the game shows through everywhere nothing was drawn
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+}
+
+void Window::end_frame() {
+    ImGui::Render();
+    // no clear here: the models are drawn between the clear and this, and clearing again
+    // would wipe them, which is exactly what used to happen
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     glfwSwapBuffers(window_);
+}
+
+void Window::set_visible(bool visible) {
+    if (window_ == nullptr || visible == visible_) {
+        return;
+    }
+    visible_ = visible;
+    if (visible) {
+        glfwShowWindow(window_);
+#ifdef DL_HAVE_X11
+        // nothing manages this window, so showing it is not enough: it has to put itself
+        // back on top, or whatever was raised while it was hidden stays over it
+        if (glfwGetPlatform() == GLFW_PLATFORM_X11) {
+            ::Display* display = glfwGetX11Display();
+            if (display != nullptr) {
+                XRaiseWindow(display, glfwGetX11Window(window_));
+                XFlush(display);
+            }
+        }
+#endif
+    } else {
+        glfwHideWindow(window_);
+    }
+}
+
+bool Window::game_is_active() {
+#ifndef DL_HAVE_X11
+    return true;
+#else
+    if (glfwGetPlatform() != GLFW_PLATFORM_X11) {
+        return true;
+    }
+    ::Display* display = glfwGetX11Display();
+    if (display == nullptr) {
+        return true;
+    }
+
+    const ::Atom active = XInternAtom(display, "_NET_ACTIVE_WINDOW", False);
+    ::Atom type = 0;
+    int format = 0;
+    unsigned long count = 0;
+    unsigned long remaining = 0;
+    unsigned char* value = nullptr;
+    if (XGetWindowProperty(display, DefaultRootWindow(display), active, 0, 1, False, XA_WINDOW,
+                           &type, &format, &count, &remaining, &value) != Success ||
+        value == nullptr || count == 0) {
+        return false;
+    }
+
+    const ::Window focused = *reinterpret_cast<const ::Window*>(value);
+    XFree(value);
+    return focused != 0 &&
+           window_name(display, focused).find("Counter-Strike") != std::string::npos;
+#endif
 }
 
 bool Window::alive() const {

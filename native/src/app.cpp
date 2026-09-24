@@ -265,6 +265,13 @@ void App::draw_overlay() {
         return;
     }
 
+    // the overlay only belongs on screen while the user is actually in the game. an
+    // unmanaged window would otherwise sit over every other window on the desktop.
+    if (!overlay::Window::game_is_active() || !snapshot_.in_game) {
+        overlay_.set_visible(false);
+        return;
+    }
+
     // the game reports its own window only while it has focus, so when it does not, the
     // display server is asked where the window is instead
     Vec2 position = snapshot_.window_position;
@@ -276,15 +283,16 @@ void App::draw_overlay() {
         }
     }
     overlay_.follow(position, size);
+    overlay_.set_visible(true);
 
     ImGui::SetCurrentContext(overlay_context_);
     overlay_.begin_frame();
-    if (snapshot_.in_game && features_.esp_enabled(state_.config)) {
-        const overlay::FeatureState features{features_.aimbot_active(),
-                                             features_.triggerbot_active()};
-        overlay::draw_esp(snapshot_, state_.config, features, trails_, sounds_);
+    // the clear comes first and only once: the models are drawn straight through gl, and a
+    // second clear before the imgui pass would wipe them
+    overlay_.clear();
 
-        // the models go through gl directly, so they are drawn before imgui's own pass
+    if (features_.esp_enabled(state_.config)) {
+        // the models go first, so the 2d esp is drawn over them rather than under
         if (state_.config.player.draw_model != config::DrawMode::None && models_.ready()) {
             const config::PlayerConfig& player = state_.config.player;
             for (const cs2::PlayerData& data : snapshot_.players) {
@@ -292,8 +300,20 @@ void App::draw_overlay() {
                              player.model_visible_color, player.model_invisible_color,
                              player.model_mode);
             }
+            if (player.show_friendlies) {
+                for (const cs2::PlayerData& data : snapshot_.friendlies) {
+                    models_.draw(data.model_name, data.skeleton, snapshot_.view_matrix,
+                                 player.model_visible_color, player.model_invisible_color,
+                                 player.model_mode);
+                }
+            }
         }
+
+        const overlay::FeatureState features{features_.aimbot_active(),
+                                             features_.triggerbot_active()};
+        overlay::draw_esp(snapshot_, state_.config, features, trails_, sounds_);
     }
+
     overlay_.end_frame();
     ImGui::SetCurrentContext(settings_context_);
 }

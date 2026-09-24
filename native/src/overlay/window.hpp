@@ -36,8 +36,20 @@ public:
     void follow(const Vec2& position, const Vec2& size);
 
     void begin_frame();
-    /// Presents the frame. The background stays fully transparent, only what was drawn shows.
+    /// Clears to full transparency and makes this context current, so anything drawn with
+    /// raw gl lands on a blank frame. Must come before drawing the models, because the
+    /// clear would otherwise wipe them.
+    void clear();
+    /// Draws the imgui layer over whatever is already there and presents the frame.
     void end_frame();
+
+    /// Shows or hides the overlay. An unmanaged window has to be raised by hand whenever
+    /// it is shown, since no window manager will do it.
+    void set_visible(bool visible);
+    [[nodiscard]] bool visible() const { return visible_; }
+
+    /// Whether the game is the window the user is currently looking at.
+    [[nodiscard]] static bool game_is_active();
 
     [[nodiscard]] bool alive() const;
     [[nodiscard]] GLFWwindow* handle() const { return window_; }
@@ -47,6 +59,7 @@ private:
     GLFWwindow* window_ = nullptr;
     Vec2 position_{0.0f};
     Vec2 size_{1.0f};
+    bool visible_ = true;
 };
 
 }  // namespace dl::overlay
