@@ -163,6 +163,11 @@ bool App::init() {
         ImGui_ImplGlfw_InitForOpenGL(overlay_.handle(), false);
         ImGui_ImplOpenGL3_Init("#version 330");
         ImGui::SetCurrentContext(settings_context_);
+        // the model renderer draws with raw gl into the overlay's context, so it is
+        // created there and is optional like the overlay itself
+        if (const std::string error = models_.create(); !error.empty()) {
+            std::fprintf(stderr, "no player models: %s\n", error.c_str());
+        }
         std::fprintf(stderr, "overlay window ready\n");
     }
 
@@ -251,6 +256,16 @@ void App::draw_overlay() {
         const overlay::FeatureState features{features_.aimbot_active(),
                                              features_.triggerbot_active()};
         overlay::draw_esp(snapshot_, state_.config, features, trails_);
+
+        // the models go through gl directly, so they are drawn before imgui's own pass
+        if (state_.config.player.draw_model != config::DrawMode::None && models_.ready()) {
+            const config::PlayerConfig& player = state_.config.player;
+            for (const cs2::PlayerData& data : snapshot_.players) {
+                models_.draw(data.model_name, data.skeleton, snapshot_.view_matrix,
+                             player.model_visible_color, player.model_invisible_color,
+                             player.model_mode);
+            }
+        }
     }
     overlay_.end_frame();
     ImGui::SetCurrentContext(settings_context_);
