@@ -4,10 +4,17 @@
 #include <string_view>
 #include <utility>
 
+#include <chrono>
+#include <optional>
+
 #include "config/config.hpp"
+#include "cs2/game.hpp"
+#include "cs2/snapshot.hpp"
+#include "overlay/window.hpp"
 
 struct GLFWwindow;
 struct ImFont;
+struct ImGuiContext;
 
 namespace dl {
 
@@ -78,8 +85,21 @@ public:
 
 private:
     void frame();
+    /// Keeps the game attached, ticks it, and refreshes the snapshot the overlay draws.
+    void update_game();
+    void draw_overlay();
+
 
     GLFWwindow* window_ = nullptr;
+    /// one imgui context per window: the backends bind to a single window each
+    ImGuiContext* settings_context_ = nullptr;
+    ImGuiContext* overlay_context_ = nullptr;
+
+    overlay::Window overlay_;
+    std::optional<cs2::Game> game_;
+    cs2::Snapshot snapshot_;
+    std::chrono::steady_clock::time_point last_attach_{};
+
     AppState state_;
 };
 

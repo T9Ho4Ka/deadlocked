@@ -30,6 +30,8 @@ add_executable(deadlocked-native
     src/cs2/input.cpp
     src/geometry/bvh.cpp
     src/cs2/physics.cpp
+    src/overlay/window.cpp
+    src/overlay/esp.cpp
     src/game_math.cpp
 )
 
@@ -56,6 +58,8 @@ add_library(deadlocked-core STATIC
     src/cs2/input.cpp
     src/geometry/bvh.cpp
     src/cs2/physics.cpp
+    src/overlay/window.cpp
+    src/overlay/esp.cpp
     src/game_math.cpp
 )
 target_include_directories(deadlocked-core PUBLIC src)

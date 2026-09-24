@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstddef>
+#include <utility>
 
 #include "config/enums.hpp"
 
@@ -199,5 +200,32 @@ inline constexpr std::array<EnumEntry<Bones>, bone_count> bone_entries{{
     {Bones::RightFoot, "Right Foot", "right_foot"},
 }};
 constexpr const auto& enum_entries(Bones) { return bone_entries; }
+
+/// Which bones the skeleton is drawn between. Ported from shared/src/bones.rs.
+inline constexpr std::array<std::pair<Bones, Bones>, 18> bone_connections{{
+    // spine
+    {Bones::Hip, Bones::Spine1},
+    {Bones::Spine1, Bones::Spine2},
+    {Bones::Spine2, Bones::Spine3},
+    {Bones::Spine3, Bones::Spine4},
+    {Bones::Spine4, Bones::Neck},
+    {Bones::Neck, Bones::Head},
+    // left arm
+    {Bones::Neck, Bones::LeftShoulder},
+    {Bones::LeftShoulder, Bones::LeftElbow},
+    {Bones::LeftElbow, Bones::LeftHand},
+    // right arm
+    {Bones::Neck, Bones::RightShoulder},
+    {Bones::RightShoulder, Bones::RightElbow},
+    {Bones::RightElbow, Bones::RightHand},
+    // left leg
+    {Bones::Hip, Bones::LeftHip},
+    {Bones::LeftHip, Bones::LeftKnee},
+    {Bones::LeftKnee, Bones::LeftFoot},
+    // right leg
+    {Bones::Hip, Bones::RightHip},
+    {Bones::RightHip, Bones::RightKnee},
+    {Bones::RightKnee, Bones::RightFoot},
+}};
 
 }  // namespace dl::config

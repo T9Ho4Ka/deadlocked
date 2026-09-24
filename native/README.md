@@ -78,6 +78,18 @@ Fedora dependencies: `sudo dnf install gcc-c++ cmake ninja-build glfw-devel mesa
 | `src/cs2/input.cpp` | the game's own key state, so hotkeys work without focus |
 | `src/cs2/physics.cpp` | the map's collision geometry, read out of the physics world |
 | `src/geometry/bvh.cpp` | the tree over it, and the line of sight queries |
+| `src/overlay/window.cpp` | the transparent click through window that follows the game |
+| `src/overlay/esp.cpp` | boxes, skeletons, snaplines and bars, drawn from a snapshot |
+
+## Running
+
+The client needs an X11 display: an overlay has to place its own window over the game, and
+wayland does not let a client do that. Under a wayland session it goes through xwayland,
+which is what CS2 itself runs on anyway. Without `DISPLAY` set the settings window still
+works, but there is no overlay.
+
+The overlay only sizes itself once the game reports a window, which the game only does while
+it is the focused window.
 
 ## Config
 
@@ -109,6 +121,7 @@ duplicated here. A build that cannot find them falls back to the ImGui built in 
 12. **cs2: the input layer and the tick loop** — done, though the key state offset is
     only verifiable with cs2 focused and a key held
 13. **cs2: the physics world and real line of sight** — done
-14. overlay: the OpenGL esp renderer, the transparent window, uinput
-15. features: aimbot, triggerbot, rcs, and the rest
-16. radar client and the update check
+14. **overlay: the transparent window and the player esp** — done
+15. overlay: dropped weapons, grenades, the bomb timer, the hud and 3d models
+16. features: aimbot, triggerbot, rcs, and the rest, which need uinput
+17. radar client and the update check

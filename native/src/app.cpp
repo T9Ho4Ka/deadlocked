@@ -12,6 +12,7 @@
 #include "ui/sidebar.hpp"
 #include "ui/tabs.hpp"
 #include "ui/theme.hpp"
+#include "overlay/esp.hpp"
 #include "ui/widgets.hpp"
 
 namespace dl {
@@ -63,6 +64,14 @@ void load_fonts(std::array<ImFont*, config::font_count>& fonts, float size) {
 }  // namespace
 
 App::~App() {
+    if (overlay_context_ != nullptr) {
+        ImGui::SetCurrentContext(overlay_context_);
+        ImGui_ImplOpenGL3_Shutdown();
+        ImGui_ImplGlfw_Shutdown();
+        ImGui::DestroyContext(overlay_context_);
+        overlay_context_ = nullptr;
+        ImGui::SetCurrentContext(settings_context_);
+    }
     if (window_ != nullptr) {
         ImGui_ImplOpenGL3_Shutdown();
         ImGui_ImplGlfw_Shutdown();
@@ -74,7 +83,19 @@ App::~App() {
 
 bool App::init() {
     glfwSetErrorCallback(glfw_error);
-    if (glfwInit() == GLFW_FALSE) {
+
+    // x11 first: the overlay has to place its own window over the game, and wayland does
+    // not let a client do that. under a wayland session this goes through xwayland, which
+    // is also what the rust client relies on.
+    glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
+    bool initialised = glfwInit() == GLFW_TRUE;
+    if (!initialised) {
+        std::fprintf(stderr, "x11 is unavailable, the overlay will not be able to follow "
+                             "the game window\n");
+        glfwInitHint(GLFW_PLATFORM, GLFW_ANY_PLATFORM);
+        initialised = glfwInit() == GLFW_TRUE;
+    }
+    if (!initialised) {
         std::fprintf(stderr, "could not initialise glfw\n");
         return false;
     }
@@ -119,6 +140,22 @@ bool App::init() {
 
     ImGui_ImplGlfw_InitForOpenGL(window_, true);
     ImGui_ImplOpenGL3_Init("#version 330");
+    settings_context_ = ImGui::GetCurrentContext();
+
+    // the overlay gets a window and an imgui context of its own. it is optional: without a
+    // compositor or an x11 display there is no overlay, but the settings still work.
+    if (overlay_.create()) {
+        overlay_context_ = ImGui::CreateContext();
+        ImGui::SetCurrentContext(overlay_context_);
+        ImGui::GetIO().IniFilename = nullptr;
+        ImGui::GetIO().MouseDrawCursor = false;
+        ImGui::GetIO().Fonts->AddFontDefault();
+        ImGui_ImplGlfw_InitForOpenGL(overlay_.handle(), false);
+        ImGui_ImplOpenGL3_Init("#version 330");
+        ImGui::SetCurrentContext(settings_context_);
+        std::fprintf(stderr, "overlay window ready\n");
+    }
+
     std::fprintf(stderr, "window ready, close it to quit\n");
     return true;
 }
@@ -130,6 +167,11 @@ void App::run() {
             continue;
         }
 
+        update_game();
+        draw_overlay();
+
+        glfwMakeContextCurrent(window_);
+        ImGui::SetCurrentContext(settings_context_);
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
@@ -154,6 +196,50 @@ void App::run() {
             }
         }
     }
+}
+
+void App::update_game() {
+    // attaching reads the whole schema, so a failed attempt is not retried every frame
+    constexpr auto attach_interval = std::chrono::seconds(2);
+    const auto now = std::chrono::steady_clock::now();
+
+    if (game_.has_value() && !game_->running()) {
+        std::fprintf(stderr, "the game went away\n");
+        game_.reset();
+        snapshot_.clear();
+    }
+
+    if (!game_.has_value()) {
+        if (now - last_attach_ < attach_interval) {
+            return;
+        }
+        last_attach_ = now;
+        game_ = cs2::Game::attach();
+        if (game_.has_value()) {
+            std::fprintf(stderr, "attached to cs2, pid %d\n", game_->process().pid());
+        }
+        return;
+    }
+
+    game_->tick();
+    game_->build_snapshot(snapshot_);
+}
+
+void App::draw_overlay() {
+    if (overlay_context_ == nullptr || !overlay_.alive()) {
+        return;
+    }
+
+    // the overlay follows the game's window, and hides itself when there is nothing to draw
+    overlay_.follow(snapshot_.window_position, snapshot_.window_size);
+
+    ImGui::SetCurrentContext(overlay_context_);
+    overlay_.begin_frame();
+    if (snapshot_.in_game) {
+        overlay::draw_esp(snapshot_, state_.config);
+    }
+    overlay_.end_frame();
+    ImGui::SetCurrentContext(settings_context_);
 }
 
 void App::frame() {
